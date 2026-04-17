@@ -75,6 +75,10 @@ body {
     text-align: center;
     position: relative;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
 }
 
 #app-header::before {
@@ -106,6 +110,33 @@ body {
     margin-top: 0.4rem;
     letter-spacing: 0.02em;
     position: relative;
+}
+
+#reset-btn {
+    position: relative;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: rgba(91, 140, 255, 0.12);
+    border: 1px solid rgba(91, 140, 255, 0.3);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 1.2rem;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+#reset-btn:hover {
+    background: rgba(91, 140, 255, 0.25);
+    border-color: rgba(91, 140, 255, 0.5);
+    box-shadow: 0 0 15px rgba(91, 140, 255, 0.2);
+    transform: scale(1.05);
+}
+
+#reset-btn:active {
+    transform: scale(0.97);
 }
 
 /* ===== Control Panel ===== */

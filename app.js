@@ -40,6 +40,14 @@
         skew: document.getElementById('skew-val'),
     };
 
+    // ---- Reset button ----
+    document.getElementById('reset-btn').addEventListener('click', function () {
+        Object.values(sliders).forEach(s => {
+            s.value = s.defaultValue;
+        });
+        updateAll();
+    });
+
     // ---- Math utilities ----
     function degToRad(d) { return d * Math.PI / 180; }
 
