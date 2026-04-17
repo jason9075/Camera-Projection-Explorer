@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Calibration Explorer — Geometric Models & Coordinate Transforms</title>
+    <meta name="description" content="Interactive demo for understanding camera calibration: coordinate system transformations, extrinsic & intrinsic parameters, pinhole model, and homogeneous coordinates.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header id="app-header">
+        <div class="header-content">
+            <h1>📷 Camera Calibration Explorer</h1>
+            <p class="subtitle">Geometric Models & Coordinate System Transformations</p>
+        </div>
+    </header>
+
+    <!-- Control Panel -->
+    <section id="control-panel">
+        <div class="controls-grid">
+            <!-- World Point Controls -->
+            <div class="control-group" id="world-point-controls">
+                <h3>🌍 World Point <span class="coord-label">(X<sub>w</sub>, Y<sub>w</sub>, Z<sub>w</sub>)</span></h3>
+                <div class="slider-row">
+                    <label for="pw-x">X<sub>w</sub></label>
+                    <input type="range" id="pw-x" min="-5" max="5" step="0.1" value="0.2">
+                    <span class="slider-value" id="pw-x-val">0.2</span>
+                </div>
+                <div class="slider-row">
+                    <label for="pw-y">Y<sub>w</sub></label>
+                    <input type="range" id="pw-y" min="-5" max="5" step="0.1" value="0.1">
+                    <span class="slider-value" id="pw-y-val">0.1</span>
+                </div>
+                <div class="slider-row">
+                    <label for="pw-z">Z<sub>w</sub></label>
+                    <input type="range" id="pw-z" min="-5" max="5" step="0.1" value="5">
+                    <span class="slider-value" id="pw-z-val">5.0</span>
+                </div>
+            </div>
+
+            <!-- Extrinsic Controls: Rotation -->
+            <div class="control-group" id="extrinsic-controls">
+                <h3>🔄 Extrinsics — Rotation <span class="coord-label">(Euler Angles °)</span></h3>
+                <div class="slider-row">
+                    <label for="rot-x">Roll</label>
+                    <input type="range" id="rot-x" min="-180" max="180" step="1" value="0">
+                    <span class="slider-value" id="rot-x-val">0°</span>
+                </div>
+                <div class="slider-row">
+                    <label for="rot-y">Pitch</label>
+                    <input type="range" id="rot-y" min="-180" max="180" step="1" value="0">
+                    <span class="slider-value" id="rot-y-val">0°</span>
+                </div>
+                <div class="slider-row">
+                    <label for="rot-z">Yaw</label>
+                    <input type="range" id="rot-z" min="-180" max="180" step="1" value="0">
+                    <span class="slider-value" id="rot-z-val">0°</span>
+                </div>
+            </div>
+
+            <!-- Extrinsic Controls: Translation -->
+            <div class="control-group" id="translation-controls">
+                <h3>➡️ Extrinsics — Translation <span class="coord-label">(t<sub>x</sub>, t<sub>y</sub>, t<sub>z</sub>)</span></h3>
+                <div class="slider-row">
+                    <label for="tx">t<sub>x</sub></label>
+                    <input type="range" id="tx" min="-5" max="5" step="0.1" value="0">
+                    <span class="slider-value" id="tx-val">0.0</span>
+                </div>
+                <div class="slider-row">
+                    <label for="ty">t<sub>y</sub></label>
+                    <input type="range" id="ty" min="-5" max="5" step="0.1" value="0">
+                    <span class="slider-value" id="ty-val">0.0</span>
+                </div>
+                <div class="slider-row">
+                    <label for="tz">t<sub>z</sub></label>
+                    <input type="range" id="tz" min="-5" max="5" step="0.1" value="0">
+                    <span class="slider-value" id="tz-val">0.0</span>
+                </div>
+            </div>
+
+            <!-- Intrinsic Controls -->
+            <div class="control-group" id="intrinsic-controls">
+                <h3>🔬 Intrinsics — K Matrix</h3>
+                <div class="slider-row">
+                    <label for="fx">f<sub>x</sub></label>
+                    <input type="range" id="fx" min="100" max="1500" step="10" value="800">
+                    <span class="slider-value" id="fx-val">800</span>
+                </div>
+                <div class="slider-row">
+                    <label for="fy">f<sub>y</sub></label>
+                    <input type="range" id="fy" min="100" max="1500" step="10" value="800">
+                    <span class="slider-value" id="fy-val">800</span>
+                </div>
+                <div class="slider-row">
+                    <label for="cx">c<sub>x</sub></label>
+                    <input type="range" id="cx" min="100" max="700" step="5" value="320">
+                    <span class="slider-value" id="cx-val">320</span>
+                </div>
+                <div class="slider-row">
+                    <label for="cy">c<sub>y</sub></label>
+                    <input type="range" id="cy" min="100" max="500" step="5" value="240">
+                    <span class="slider-value" id="cy-val">240</span>
+                </div>
+                <div class="slider-row">
+                    <label for="skew">Skew</label>
+                    <input type="range" id="skew" min="-50" max="50" step="1" value="0">
+                    <span class="slider-value" id="skew-val">0</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Visualization Area -->
+    <main id="visualization-area">
+        <!-- LEFT PANEL: World -> Camera -->
+        <section class="panel" id="panel-world-camera">
+            <div class="panel-header">
+                <h2>World → Camera Coordinate Transform</h2>
+                <p class="panel-desc">Rigid body transformation using extrinsic parameters [R | t]</p>
+            </div>
+            <div class="canvas-container">
+                <canvas id="canvas-3d"></canvas>
+            </div>
+            <div class="math-section" id="math-world-camera">
+                <div class="math-block">
+                    <h4>Homogeneous World Point</h4>
+                    <div class="formula" id="formula-pw"></div>
+                </div>
+                <div class="math-block">
+                    <h4>Extrinsic Matrix [R | t] (4×4)</h4>
+                    <div class="formula" id="formula-extrinsic"></div>
+                </div>
+                <div class="math-block">
+                    <h4>Camera Point P<sub>c</sub> = [R | t] · P<sub>w</sub></h4>
+                    <div class="formula" id="formula-pc"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- RIGHT PANEL: Camera -> Viewport -->
+        <section class="panel" id="panel-camera-viewport">
+            <div class="panel-header">
+                <h2>Camera → Image (Viewport) Transform</h2>
+                <p class="panel-desc">Perspective projection using intrinsic parameters K</p>
+            </div>
+            <div class="canvas-container">
+                <canvas id="canvas-2d"></canvas>
+            </div>
+            <div class="math-section" id="math-camera-viewport">
+                <div class="math-block">
+                    <h4>Camera Point (from Left Panel)</h4>
+                    <div class="formula" id="formula-pc2"></div>
+                </div>
+                <div class="math-block">
+                    <h4>Intrinsic Matrix K (3×3)</h4>
+                    <div class="formula" id="formula-intrinsic"></div>
+                </div>
+                <div class="math-block">
+                    <h4>Projected q = K · P<sub>c</sub></h4>
+                    <div class="formula" id="formula-proj"></div>
+                </div>
+                <div class="math-block">
+                    <h4>Pixel Coordinate (u, v) = (q<sub>x</sub>/q<sub>z</sub>, q<sub>y</sub>/q<sub>z</sub>)</h4>
+                    <div class="formula" id="formula-uv"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Concept Explainers -->
+    <section id="concepts">
+        <div class="concept-cards">
+            <div class="concept-card">
+                <div class="card-icon">🌐</div>
+                <h3>Coordinate Systems</h3>
+                <p><strong>World</strong> (X<sub>w</sub>, Y<sub>w</sub>, Z<sub>w</sub>): The global 3D reference frame.<br>
+                <strong>Camera</strong> (X<sub>c</sub>, Y<sub>c</sub>, Z<sub>c</sub>): Origin at the camera center, Z-axis points forward.<br>
+                <strong>Image</strong> (u, v): 2D pixel coordinates on the image plane.</p>
+            </div>
+            <div class="concept-card">
+                <div class="card-icon">📐</div>
+                <h3>Extrinsic Parameters</h3>
+                <p>The matrix <strong>[R | t]</strong> performs a rigid body transformation. <strong>R</strong> is a 3×3 orthogonal rotation matrix (R<sup>T</sup>R = I, det(R) = 1). <strong>t</strong> is a 3×1 translation vector. Together as a 4×4 matrix, they map world coordinates to camera coordinates.</p>
+            </div>
+            <div class="concept-card">
+                <div class="card-icon">🔭</div>
+                <h3>Intrinsic Parameters (Pinhole Model)</h3>
+                <p>The matrix <strong>K</strong> encodes the camera's internal geometry:<br>
+                <strong>f<sub>x</sub>, f<sub>y</sub></strong>: Focal lengths in pixels.<br>
+                <strong>c<sub>x</sub>, c<sub>y</sub></strong>: Principal point (image center offset).<br>
+                <strong>s</strong>: Skew coefficient (usually 0 for modern cameras).</p>
+            </div>
+            <div class="concept-card">
+                <div class="card-icon">📊</div>
+                <h3>Homogeneous Coordinates</h3>
+                <p>By adding a 4th component (w=1), we can represent both rotation and translation in a single 4×4 matrix multiplication. This unifies affine transformations and enables perspective division: (x, y, z, w) → (x/w, y/w, z/w).</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Full Pipeline -->
+    <section id="full-pipeline">
+        <h2>Full Projection Pipeline</h2>
+        <div class="pipeline-formula" id="formula-full-pipeline"></div>
+        <div class="pipeline-steps">
+            <div class="pipeline-step">
+                <span class="step-num">1</span>
+                <span>World Point (X<sub>w</sub>, Y<sub>w</sub>, Z<sub>w</sub>, 1)</span>
+            </div>
+            <div class="pipeline-arrow">→</div>
+            <div class="pipeline-step">
+                <span class="step-num">2</span>
+                <span>[R | t] transforms to Camera Frame</span>
+            </div>
+            <div class="pipeline-arrow">→</div>
+            <div class="pipeline-step">
+                <span class="step-num">3</span>
+                <span>K projects onto Image Plane</span>
+            </div>
+            <div class="pipeline-arrow">→</div>
+            <div class="pipeline-step">
+                <span class="step-num">4</span>
+                <span>Perspective divide → Pixel (u, v)</span>
+            </div>
+        </div>
+    </section>
+
+    <footer id="app-footer">
+        <p>Camera Calibration Explorer — Interactive learning tool for geometric vision fundamentals</p>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
