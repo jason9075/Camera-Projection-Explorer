@@ -52,14 +52,47 @@ python3 -m http.server 8080
 
 This demo uses the standard **pinhole camera model**:
 
-```
-q = K · [R | t] · Pₐ
-(u, v) = (qₓ / q_z, q_y / q_z)
+``` 
+q = K · P_c
+P_c = R · (P_w - t)
+(u, v) = (q_x / q_z, q_y / q_z)
 ```
 
-- **World frame**: Right-handed, Y-up
-- **Camera frame**: X-right, Y-down, Z-forward (OpenCV convention)
+- **World frame**: Right-handed, Z-up
+- **Camera frame**: X-forward, Y-left, Z-up
 - **Image frame**: Origin at top-left, u-right, v-down
+
+## Where The Math Lives
+
+The core projection code is in [`app.js`](./app.js):
+
+- `readParams()` reads slider values into a `params` object
+- `rotationMatrix()` builds the ZYX Euler rotation matrix
+- `computeTransforms()` performs the world-to-camera transform and camera-to-image projection
+- `updateFormulas()` renders the matrices and intermediate values shown in the UI
+
+The main calculation starts around `computeTransforms()` and follows the same pipeline shown on the page:
+
+```js
+const R = rotationMatrix(params.rot[0], params.rot[1], params.rot[2]);
+const pc = matVec3(R, [pw[0] - t[0], pw[1] - t[1], pw[2] - t[2]]);
+
+const K = [
+  [params.cx, -params.fx, params.skew],
+  [params.cy, 0,          params.fy],
+  [1,         0,          0],
+];
+
+const q = matVec3(K, pc);
+const u = q[0] / q[2];
+const v = q[1] / q[2];
+```
+
+This means:
+
+- `pc` is the point in the camera frame
+- `K` applies focal length, principal point, and skew
+- `(u, v)` is the final pixel coordinate after perspective divide
 
 ## License
 
