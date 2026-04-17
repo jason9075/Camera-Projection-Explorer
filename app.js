@@ -11,6 +11,7 @@
         pwX:  document.getElementById('pw-x'),
         pwY:  document.getElementById('pw-y'),
         pwZ:  document.getElementById('pw-z'),
+        pwSize: document.getElementById('pw-size'),
         rotX: document.getElementById('rot-x'),
         rotY: document.getElementById('rot-y'),
         rotZ: document.getElementById('rot-z'),
@@ -28,6 +29,7 @@
         pwX:  document.getElementById('pw-x-val'),
         pwY:  document.getElementById('pw-y-val'),
         pwZ:  document.getElementById('pw-z-val'),
+        pwSize: document.getElementById('pw-size-val'),
         rotX: document.getElementById('rot-x-val'),
         rotY: document.getElementById('rot-y-val'),
         rotZ: document.getElementById('rot-z-val'),
@@ -102,6 +104,7 @@
     function readParams() {
         return {
             pw: [parseFloat(sliders.pwX.value), parseFloat(sliders.pwY.value), parseFloat(sliders.pwZ.value)],
+            pwSize: parseFloat(sliders.pwSize.value),
             rot: [parseFloat(sliders.rotX.value), parseFloat(sliders.rotY.value), parseFloat(sliders.rotZ.value)],
             t: [parseFloat(sliders.tx.value), parseFloat(sliders.ty.value), parseFloat(sliders.tz.value)],
             fx: parseFloat(sliders.fx.value),
@@ -413,6 +416,9 @@
         // World point
         pointSphere.position.set(pw[0], pw[1], pw[2]);
         pointGlow.position.copy(pointSphere.position);
+        const pointScale = params.pwSize / 0.15;
+        pointSphere.scale.setScalar(pointScale);
+        pointGlow.scale.setScalar(pointScale);
 
         // Camera position & orientation
         // The camera is at position -R^T * t in world coords
@@ -516,7 +522,7 @@
     const ctx2d = canvas2d.getContext('2d');
 
     function draw2DViewport(params, data) {
-        const { u, v, behindCamera } = data;
+        const { u, v, behindCamera, pImg } = data;
         const dpr = Math.min(window.devicePixelRatio, 2);
         const rect = canvas2d.getBoundingClientRect();
         const w = rect.width;
@@ -665,6 +671,10 @@
             const px = projectedPoint.x;
             const py = projectedPoint.y;
             const inBounds = u >= 0 && u <= imgW && v >= 0 && v <= imgH;
+            const baseScale = params.pwSize / 0.15;
+            const depthScale = Math.max(0.45, Math.min(2.4, 3 / Math.max(pImg[2], 0.001)));
+            const pointRadius = 6 * baseScale * depthScale;
+            const glowRadius = 25 * baseScale * depthScale;
 
             // Clamp position for drawing when out of bounds
             const margin = 15;
@@ -691,24 +701,24 @@
 
             if (inBounds) {
                 // Point glow
-                const gradient = ctx2d.createRadialGradient(px, py, 0, px, py, 25);
+                const gradient = ctx2d.createRadialGradient(px, py, 0, px, py, glowRadius);
                 gradient.addColorStop(0, 'rgba(251, 146, 60, 0.45)');
                 gradient.addColorStop(0.5, 'rgba(251, 146, 60, 0.1)');
                 gradient.addColorStop(1, 'transparent');
                 ctx2d.fillStyle = gradient;
                 ctx2d.beginPath();
-                ctx2d.arc(px, py, 25, 0, Math.PI * 2);
+                ctx2d.arc(px, py, glowRadius, 0, Math.PI * 2);
                 ctx2d.fill();
 
                 // Point dot
                 ctx2d.fillStyle = '#fb923c';
                 ctx2d.beginPath();
-                ctx2d.arc(px, py, 6, 0, Math.PI * 2);
+                ctx2d.arc(px, py, pointRadius, 0, Math.PI * 2);
                 ctx2d.fill();
                 ctx2d.strokeStyle = 'rgba(251, 146, 60, 0.8)';
                 ctx2d.lineWidth = 2;
                 ctx2d.beginPath();
-                ctx2d.arc(px, py, 6, 0, Math.PI * 2);
+                ctx2d.arc(px, py, pointRadius, 0, Math.PI * 2);
                 ctx2d.stroke();
 
                 // Coordinates label
@@ -794,6 +804,7 @@
         valLabels.pwX.textContent = fmt(params.pw[0], 1);
         valLabels.pwY.textContent = fmt(params.pw[1], 1);
         valLabels.pwZ.textContent = fmt(params.pw[2], 1);
+        valLabels.pwSize.textContent = fmt(params.pwSize, 2);
         valLabels.rotX.textContent = params.rot[0] + '°';
         valLabels.rotY.textContent = params.rot[1] + '°';
         valLabels.rotZ.textContent = params.rot[2] + '°';
