@@ -4,6 +4,7 @@
 
 (function () {
     'use strict';
+    THREE.Object3D.DefaultUp.set(0, 0, 1);
 
     // ---- DOM references ----
     const sliders = {
@@ -72,6 +73,7 @@
         ];
     }
 
+
     function fmt(n, d=2) {
         return Number(n).toFixed(d);
     }
@@ -92,22 +94,30 @@
 
     // ---- Compute transforms ----
     function computeTransforms(params) {
+        // Convention: Xc = forward (depth), Yc = right, Zc = up.
+        // With R=I, camera looks along world +X.
         const R = rotationMatrix(params.rot[0], params.rot[1], params.rot[2]);
         const pw = params.pw;
         const t = params.t;
 
-        // Camera point: Pc = R * Pw + t
-        const Rpw = matVec3(R, pw);
-        const pc = [Rpw[0] + t[0], Rpw[1] + t[1], Rpw[2] + t[2]];
+        // Camera point: Pc = R * (Pw − t)  where t = camera position in world frame
+        const Rpw = matVec3(R, [pw[0]-t[0], pw[1]-t[1], pw[2]-t[2]]);
+        const pc = Rpw;
 
-        // Intrinsic projection: q = K * Pc
+        // Intrinsic projection — Xc-forward convention:
+        //   Camera frame: X=forward, Z=up  →  right-hand rule: right = -(X×Z) = +Y...
+        //   but physically: facing +X with +Z up → right = forward×up = X×Z = -Y.
+        //   So camera RIGHT = -Yc, camera LEFT = +Yc.
+        //   u = cx - fx*(Yc/Xc) + skew*(Zc/Xc)   [+Yc = camera left → u < cx]
+        //   v = cy + fy*(Zc/Xc)                   [+Zc = camera up  → v > cy]
+        // K expressed so that q = K * Pc gives (u*Xc, v*Xc, Xc):
         const K = [
-            [params.fx, params.skew, params.cx],
-            [0,         params.fy,   params.cy],
-            [0,         0,           1        ],
+            [params.cx, -params.fx, params.skew],
+            [params.cy, 0,          params.fy  ],
+            [1,         0,          0           ],
         ];
         const q = matVec3(K, pc);
-        const behindCamera = pc[2] <= 0;
+        const behindCamera = pc[0] <= 0;   // Xc is depth
         const u = behindCamera ? NaN : q[0] / q[2];
         const v = behindCamera ? NaN : q[1] / q[2];
 
@@ -167,13 +177,13 @@
                         [`<span class="val-camera">${fmt(pc[1])}</span>`],
                         [`<span class="val-camera">${fmt(pc[2])}</span>`]], '') + warnBadge;
 
-        // Intrinsic K
+        // Intrinsic K (Xc-forward: u = cx − fx·(Yc/Xc), v = cy + fy·(Zc/Xc))
         document.getElementById('formula-intrinsic').innerHTML =
             `K = ` +
             matrixHTML([
                 [`<span class="val-intrinsic">${fmt(K[0][0],0)}</span>`, `<span class="val-intrinsic">${fmt(K[0][1],0)}</span>`, `<span class="val-intrinsic">${fmt(K[0][2],0)}</span>`],
-                [`0`, `<span class="val-intrinsic">${fmt(K[1][1],0)}</span>`, `<span class="val-intrinsic">${fmt(K[1][2],0)}</span>`],
-                [`0`, `0`, `1`],
+                [`<span class="val-intrinsic">${fmt(K[1][0],0)}</span>`, `0`, `<span class="val-intrinsic">${fmt(K[1][2],0)}</span>`],
+                [`1`, `0`, `0`],
             ], '');
 
         // Projected q
@@ -195,11 +205,15 @@
             `<span class="operator">=</span>` +
             `<span class="val-intrinsic">K</span>` +
             `<span class="operator">·</span>` +
-            `<span class="val-camera">[R | t]</span>` +
+            `<span class="val-camera">R</span>` +
             `<span class="operator">·</span>` +
+            `<span class="operator">(</span>` +
             `<span class="val-world">P<sub>w</sub></span>` +
+            `<span class="operator">−</span>` +
+            `<span class="val-camera">t</span>` +
+            `<span class="operator">)</span>` +
             `<br>` +
-            `<span style="color:var(--text-dim)">Pixel: (u, v) = (q<sub>x</sub>/q<sub>z</sub> , q<sub>y</sub>/q<sub>z</sub>)</span>` +
+            `<span style="color:var(--text-dim)">Pixel: (u, v) = (q<sub>1</sub>/q<sub>3</sub> , q<sub>2</sub>/q<sub>3</sub>)  where q<sub>3</sub> = X<sub>c</sub> (depth),  t = camera position in world</span>` +
             `<br>` +
             `<span style="color:var(--text-dim)">(u, v) = (${uStr}, ${vStr})</span>`;
     }
@@ -215,7 +229,7 @@
 
     // Orbit-like static camera for the overview scene
     const cam3d = new THREE.PerspectiveCamera(50, 4/3, 0.1, 100);
-    cam3d.position.set(8, 6, 8);
+    cam3d.position.set(10, -10, 8);
     cam3d.lookAt(0, 0, 0);
 
     // Lights
@@ -226,6 +240,7 @@
 
     // Ground grid
     const gridHelper = new THREE.GridHelper(10, 10, 0x2a3560, 0x1a2040);
+    gridHelper.rotation.x = Math.PI / 2;
     scene.add(gridHelper);
 
     // World axes (thick lines)
@@ -280,18 +295,18 @@
     const cameraGroup = new THREE.Group();
     scene.add(cameraGroup);
 
-    // Camera body (box)
-    const camBodyGeom = new THREE.BoxGeometry(0.5, 0.35, 0.6);
+    // Camera body (box) — elongated along local X (Xc = forward)
+    const camBodyGeom = new THREE.BoxGeometry(0.6, 0.35, 0.5);
     const camBodyMat = new THREE.MeshStandardMaterial({ color: 0x5b8cff, emissive: 0x3366cc, emissiveIntensity: 0.3, transparent: true, opacity: 0.85 });
     const camBody = new THREE.Mesh(camBodyGeom, camBodyMat);
     cameraGroup.add(camBody);
 
-    // Camera lens
+    // Camera lens — points along local +X (Xc = forward)
     const lensGeom = new THREE.CylinderGeometry(0.12, 0.15, 0.25, 16);
     const lensMat = new THREE.MeshStandardMaterial({ color: 0x222244, emissive: 0x111122, emissiveIntensity: 0.2 });
     const lens = new THREE.Mesh(lensGeom, lensMat);
-    lens.rotation.x = Math.PI / 2;
-    lens.position.z = 0.42;
+    lens.rotation.z = -Math.PI / 2;   // CylinderGeometry axis is Y; rotate to align with X
+    lens.position.x = 0.42;
     cameraGroup.add(lens);
 
     // Camera axes
@@ -329,16 +344,17 @@
         const halfH_f = far * Math.tan(degToRad(fovDeg / 2));
         const halfW_f = halfH_f * aspect;
         const p = frustumGeom.attributes.position.array;
-        // Near plane (z = +near, camera looks along +Z in our convention)
-        p[0] = -halfW_n; p[1] = -halfH_n; p[2] = near;
-        p[3] =  halfW_n; p[4] = -halfH_n; p[5] = near;
-        p[6] = -halfW_n; p[7] =  halfH_n; p[8] = near;
-        p[9] =  halfW_n; p[10] = halfH_n; p[11]= near;
-        // Far plane
-        p[12]= -halfW_f; p[13]= -halfH_f; p[14]= far;
-        p[15]=  halfW_f; p[16]= -halfH_f; p[17]= far;
-        p[18]= -halfW_f; p[19]=  halfH_f; p[20]= far;
-        p[21]=  halfW_f; p[22]=  halfH_f; p[23]= far;
+        // Xc-forward: near/far planes at x=near/far, corners in YZ plane
+        // near plane corners (x=near, y=±halfW, z=±halfH)
+        p[0] = near; p[1] = -halfW_n; p[2] = -halfH_n;
+        p[3] = near; p[4] =  halfW_n; p[5] = -halfH_n;
+        p[6] = near; p[7] = -halfW_n; p[8] =  halfH_n;
+        p[9] = near; p[10]=  halfW_n; p[11]=  halfH_n;
+        // far plane corners (x=far)
+        p[12]= far;  p[13]= -halfW_f; p[14]= -halfH_f;
+        p[15]= far;  p[16]=  halfW_f; p[17]= -halfH_f;
+        p[18]= far;  p[19]= -halfW_f; p[20]=  halfH_f;
+        p[21]= far;  p[22]=  halfW_f; p[23]=  halfH_f;
         frustumGeom.attributes.position.needsUpdate = true;
     }
     updateFrustum(50, 4/3, 0.3, 3);
@@ -369,14 +385,13 @@
         // Camera position & orientation
         // The camera is at position -R^T * t in world coords
         // But for visualization, we set the camera group transform
-        // Camera extrinsic: Pc = R * Pw + t
-        // Camera origin in world = -R^T * t
+        // t = camera position in world frame → camera origin is just t
         const RT = [
             [R[0][0], R[1][0], R[2][0]],
             [R[0][1], R[1][1], R[2][1]],
             [R[0][2], R[1][2], R[2][2]],
         ];
-        const camOriginWorld = matVec3(RT, [-t[0], -t[1], -t[2]]);
+        const camOriginWorld = [t[0], t[1], t[2]];
 
         // Set camera group transform using the full 4x4 matrix
         // The extrinsic maps world→camera, so the camera pose in world is the inverse
@@ -413,9 +428,9 @@
     }
 
     // ---- Orbit controls (simple manual) ----
-    let orbitTheta = 0.6;
-    let orbitPhi = 0.5;
-    let orbitRadius = 12;
+    let orbitTheta = Math.PI / 4;                  // θ=0 is +X axis; start at 45° for isometric spread
+    let orbitPhi = Math.acos(1 / Math.sqrt(3));    // true isometric elevation (~54.7° from zenith)
+    let orbitRadius = 18;
     let isDragging = false;
     let lastMouse = { x: 0, y: 0 };
 
@@ -424,7 +439,7 @@
         if (!isDragging) return;
         const dx = e.clientX - lastMouse.x;
         const dy = e.clientY - lastMouse.y;
-        orbitTheta += dx * 0.005;
+        orbitTheta -= dx * 0.005;
         orbitPhi = Math.max(0.1, Math.min(Math.PI - 0.1, orbitPhi - dy * 0.005));
         lastMouse = { x: e.clientX, y: e.clientY };
     });
@@ -447,7 +462,7 @@
         e.preventDefault();
         const dx = e.touches[0].clientX - lastMouse.x;
         const dy = e.touches[0].clientY - lastMouse.y;
-        orbitTheta += dx * 0.005;
+        orbitTheta -= dx * 0.005;
         orbitPhi = Math.max(0.1, Math.min(Math.PI - 0.1, orbitPhi - dy * 0.005));
         lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     }, { passive: false });
@@ -456,8 +471,8 @@
     function updateOrbitCamera() {
         cam3d.position.set(
             orbitRadius * Math.sin(orbitPhi) * Math.cos(orbitTheta),
-            orbitRadius * Math.cos(orbitPhi),
-            orbitRadius * Math.sin(orbitPhi) * Math.sin(orbitTheta)
+            orbitRadius * Math.sin(orbitPhi) * Math.sin(orbitTheta),
+            orbitRadius * Math.cos(orbitPhi)
         );
         cam3d.lookAt(0, 0, 0);
     }
@@ -674,7 +689,7 @@
             ctx2d.fillStyle = 'rgba(248, 113, 113, 0.8)';
             ctx2d.font = '14px "Inter", sans-serif';
             ctx2d.textAlign = 'center';
-            ctx2d.fillText('Point is behind the camera (Zc ≤ 0)', w / 2, h / 2);
+            ctx2d.fillText('Point is behind the camera (Xc ≤ 0)', w / 2, h / 2);
             ctx2d.font = '11px "Inter", sans-serif';
             ctx2d.fillStyle = 'rgba(248, 113, 113, 0.5)';
             ctx2d.fillText('Move the world point or adjust camera translation', w / 2, h / 2 + 22);
