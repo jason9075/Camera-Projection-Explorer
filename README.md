@@ -1,6 +1,6 @@
 # 📷 Camera Calibration Explorer
 
-An interactive, static web demo for understanding the **geometric foundations of camera calibration** — coordinate system transformations, extrinsic & intrinsic parameters, the pinhole camera model, and homogeneous coordinates.
+**[🔗 Live Demo](https://jason9075.github.io/camera_pos_page/)** for understanding the **geometric foundations of camera calibration** — coordinate system transformations, extrinsic & intrinsic parameters, the pinhole camera model, and homogeneous coordinates.
 
 ## Features
 
