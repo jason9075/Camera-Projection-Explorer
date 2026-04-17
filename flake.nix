@@ -1,5 +1,5 @@
 {
-  description = "Camera Calibration Explorer - Static Web Page";
+  description = "Camera Projection Explorer - Static Web Page";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -20,7 +20,7 @@
           ];
 
           shellHook = ''
-            echo "Camera Calibration Explorer dev environment"
+            echo "Camera Projection Explorer dev environment"
             echo "Run: python3 -m http.server 8080"
           '';
         };

@@ -1,4 +1,4 @@
-# Camera Calibration Explorer
+# Camera Projection Explorer
 
 # Start local dev server on port 8080
 serve:
