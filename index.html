@@ -15,8 +15,9 @@
     <!-- Header -->
     <header id="app-header">
         <div class="header-content">
-            <h1>📷 Camera Calibration Explorer</h1>
+            <h1>Camera Calibration Explorer</h1>
             <p class="subtitle">Geometric Models & Coordinate System Transformations</p>
+            <p class="subtitle">Right-handed coordinate system, Z-up world frame</p>
         </div>
         <button id="reset-btn" title="Reset all parameters to defaults">↺ Reset</button>
     </header>
@@ -69,18 +70,18 @@
                 <h3>➡️ Extrinsics — Translation <span class="coord-label">(t<sub>x</sub>, t<sub>y</sub>, t<sub>z</sub>)</span></h3>
                 <div class="slider-row">
                     <label for="tx">t<sub>x</sub></label>
-                    <input type="range" id="tx" min="-5" max="5" step="0.1" value="0">
-                    <span class="slider-value" id="tx-val">0.0</span>
+                    <input type="range" id="tx" min="-5" max="5" step="0.1" value="1.0">
+                    <span class="slider-value" id="tx-val">1.0</span>
                 </div>
                 <div class="slider-row">
                     <label for="ty">t<sub>y</sub></label>
-                    <input type="range" id="ty" min="-5" max="5" step="0.1" value="0">
-                    <span class="slider-value" id="ty-val">0.0</span>
+                    <input type="range" id="ty" min="-5" max="5" step="0.1" value="1.5">
+                    <span class="slider-value" id="ty-val">1.5</span>
                 </div>
                 <div class="slider-row">
                     <label for="tz">t<sub>z</sub></label>
-                    <input type="range" id="tz" min="-5" max="5" step="0.1" value="0">
-                    <span class="slider-value" id="tz-val">0.0</span>
+                    <input type="range" id="tz" min="-5" max="5" step="0.1" value="1.2">
+                    <span class="slider-value" id="tz-val">1.2</span>
                 </div>
             </div>
 
@@ -109,7 +110,7 @@
                 </div>
                 <div class="slider-row">
                     <label for="skew">Skew</label>
-                    <input type="range" id="skew" min="-50" max="50" step="1" value="0">
+                    <input type="range" id="skew" min="-200" max="200" step="1" value="0">
                     <span class="slider-value" id="skew-val">0</span>
                 </div>
             </div>
@@ -179,8 +180,8 @@
             <div class="concept-card">
                 <div class="card-icon">🌐</div>
                 <h3>Coordinate Systems</h3>
-                <p><strong>World</strong> (X<sub>w</sub>, Y<sub>w</sub>, Z<sub>w</sub>): The global 3D reference frame (+Z points Up).<br>
-                <strong>Camera</strong> (X<sub>c</sub>, Y<sub>c</sub>, Z<sub>c</sub>): Origin at the camera center, Z-axis points forward.<br>
+                <p><strong>World</strong> (X<sub>w</sub>, Y<sub>w</sub>, Z<sub>w</sub>): Right-handed global 3D reference frame (+Z points Up).<br>
+                <strong>Camera</strong> (X<sub>c</sub>, Y<sub>c</sub>, Z<sub>c</sub>): Origin at the camera center, X-axis points forward.<br>
                 <strong>Image</strong> (u, v): 2D pixel coordinates on the image plane.</p>
             </div>
             <div class="concept-card">

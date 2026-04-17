@@ -338,26 +338,38 @@
     const frustumLines = new THREE.LineSegments(frustumGeom, frustumMat);
     cameraGroup.add(frustumLines);
 
-    function updateFrustum(fovDeg, aspect, near, far) {
-        const halfH_n = near * Math.tan(degToRad(fovDeg / 2));
-        const halfW_n = halfH_n * aspect;
-        const halfH_f = far * Math.tan(degToRad(fovDeg / 2));
-        const halfW_f = halfH_f * aspect;
+    function updateFrustumFromIntrinsics(params, near, far) {
+        const imgW = Math.max(params.cx * 2, 1);
+        const imgH = Math.max(params.cy * 2, 1);
+
+        function imagePointToCamera(u, v, depth) {
+            const zOverX = (v - params.cy) / params.fy;
+            const yOverX = (params.cx - u + params.skew * zOverX) / params.fx;
+            return [depth, yOverX * depth, zOverX * depth];
+        }
+
+        const nearCorners = [
+            imagePointToCamera(0, 0, near),
+            imagePointToCamera(imgW, 0, near),
+            imagePointToCamera(0, imgH, near),
+            imagePointToCamera(imgW, imgH, near),
+        ];
+        const farCorners = [
+            imagePointToCamera(0, 0, far),
+            imagePointToCamera(imgW, 0, far),
+            imagePointToCamera(0, imgH, far),
+            imagePointToCamera(imgW, imgH, far),
+        ];
+
         const p = frustumGeom.attributes.position.array;
-        // Xc-forward: near/far planes at x=near/far, corners in YZ plane
-        // near plane corners (x=near, y=±halfW, z=±halfH)
-        p[0] = near; p[1] = -halfW_n; p[2] = -halfH_n;
-        p[3] = near; p[4] =  halfW_n; p[5] = -halfH_n;
-        p[6] = near; p[7] = -halfW_n; p[8] =  halfH_n;
-        p[9] = near; p[10]=  halfW_n; p[11]=  halfH_n;
-        // far plane corners (x=far)
-        p[12]= far;  p[13]= -halfW_f; p[14]= -halfH_f;
-        p[15]= far;  p[16]=  halfW_f; p[17]= -halfH_f;
-        p[18]= far;  p[19]= -halfW_f; p[20]=  halfH_f;
-        p[21]= far;  p[22]=  halfW_f; p[23]=  halfH_f;
+        [...nearCorners, ...farCorners].forEach((corner, index) => {
+            const base = index * 3;
+            p[base] = corner[0];
+            p[base + 1] = corner[1];
+            p[base + 2] = corner[2];
+        });
         frustumGeom.attributes.position.needsUpdate = true;
     }
-    updateFrustum(50, 4/3, 0.3, 3);
 
     // Line from camera to world point
     const lineToPointGeom = new THREE.BufferGeometry().setFromPoints([
@@ -377,6 +389,7 @@
     // ---- Update 3D scene ----
     function update3DScene(params, data) {
         const { pw, R, t, pc } = data;
+        updateFrustumFromIntrinsics(params, 0.3, 3);
 
         // World point
         pointSphere.position.set(pw[0], pw[1], pw[2]);
@@ -496,18 +509,57 @@
         // Image dimensions based on principal point (double it for a symmetric-ish viewport)
         const imgW = params.cx * 2;
         const imgH = params.cy * 2;
+        const skewSlope = params.skew / Math.max(params.fy, 1);
 
-        // Scale to fit canvas
-        const scale = Math.min(w / imgW, h / imgH) * 0.85;
-        const offX = (w - imgW * scale) / 2;
-        const offY = (h - imgH * scale) / 2;
+        function rawPoint(uVal, vVal) {
+            return {
+                x: uVal + (vVal - params.cy) * skewSlope,
+                y: imgH - vVal,
+            };
+        }
 
-        // Coordinate mapping helpers
-        // u maps normally (left to right)
-        // v is FLIPPED: v=0 at bottom, v=imgH at top (viewfinder perspective)
-        // This corrects the Y-up (3D scene) vs Y-down (image coords) mismatch
-        function mapX(uVal) { return offX + uVal * scale; }
-        function mapY(vVal) { return offY + imgH * scale - vVal * scale; }
+        function drawLine(p0, p1) {
+            ctx2d.beginPath();
+            ctx2d.moveTo(p0.x, p0.y);
+            ctx2d.lineTo(p1.x, p1.y);
+            ctx2d.stroke();
+        }
+
+        const rawCorners = [
+            rawPoint(0, 0),
+            rawPoint(imgW, 0),
+            rawPoint(imgW, imgH),
+            rawPoint(0, imgH),
+        ];
+        const rawXs = rawCorners.map(p => p.x);
+        const rawYs = rawCorners.map(p => p.y);
+        const rawMinX = Math.min(...rawXs);
+        const rawMaxX = Math.max(...rawXs);
+        const rawMinY = Math.min(...rawYs);
+        const rawMaxY = Math.max(...rawYs);
+        const rawWidth = rawMaxX - rawMinX;
+        const rawHeight = rawMaxY - rawMinY;
+
+        // Fit the skewed image plane into the canvas while keeping margins around the polygon.
+        const scale = Math.min(w / rawWidth, h / rawHeight) * 0.85;
+        const offX = (w - rawWidth * scale) / 2 - rawMinX * scale;
+        const offY = (h - rawHeight * scale) / 2 - rawMinY * scale;
+
+        function mapPoint(uVal, vVal) {
+            const p = rawPoint(uVal, vVal);
+            return { x: offX + p.x * scale, y: offY + p.y * scale };
+        }
+
+        const corners = [
+            mapPoint(0, 0),
+            mapPoint(imgW, 0),
+            mapPoint(imgW, imgH),
+            mapPoint(0, imgH),
+        ];
+        const planeMinX = Math.min(...corners.map(p => p.x));
+        const planeMaxX = Math.max(...corners.map(p => p.x));
+        const planeMinY = Math.min(...corners.map(p => p.y));
+        const planeMaxY = Math.max(...corners.map(p => p.y));
 
         // Background
         ctx2d.fillStyle = '#080c18';
@@ -518,26 +570,24 @@
         vignette.addColorStop(0, 'rgba(20, 30, 55, 0.95)');
         vignette.addColorStop(1, 'rgba(10, 15, 30, 0.95)');
         ctx2d.fillStyle = vignette;
-        ctx2d.fillRect(offX, offY, imgW * scale, imgH * scale);
+        ctx2d.beginPath();
+        ctx2d.moveTo(corners[0].x, corners[0].y);
+        corners.slice(1).forEach(corner => ctx2d.lineTo(corner.x, corner.y));
+        ctx2d.closePath();
+        ctx2d.fill();
         ctx2d.strokeStyle = 'rgba(91, 140, 255, 0.3)';
         ctx2d.lineWidth = 1.5;
-        ctx2d.strokeRect(offX, offY, imgW * scale, imgH * scale);
+        ctx2d.stroke();
 
         // Grid lines
         ctx2d.strokeStyle = 'rgba(91, 140, 255, 0.06)';
         ctx2d.lineWidth = 0.5;
         const gridStep = 50;
         for (let gx = 0; gx <= imgW; gx += gridStep) {
-            ctx2d.beginPath();
-            ctx2d.moveTo(mapX(gx), offY);
-            ctx2d.lineTo(mapX(gx), offY + imgH * scale);
-            ctx2d.stroke();
+            drawLine(mapPoint(gx, 0), mapPoint(gx, imgH));
         }
         for (let gy = 0; gy <= imgH; gy += gridStep) {
-            ctx2d.beginPath();
-            ctx2d.moveTo(offX, mapY(gy));
-            ctx2d.lineTo(offX + imgW * scale, mapY(gy));
-            ctx2d.stroke();
+            drawLine(mapPoint(0, gy), mapPoint(imgW, gy));
         }
 
         // Tick marks along bottom edge (u axis)
@@ -545,43 +595,38 @@
         ctx2d.font = '8px "JetBrains Mono", monospace';
         ctx2d.textAlign = 'center';
         for (let gx = 0; gx <= imgW; gx += 100) {
-            const tx = mapX(gx);
+            const tickBase = mapPoint(gx, 0);
             ctx2d.strokeStyle = 'rgba(91, 140, 255, 0.15)';
             ctx2d.lineWidth = 1;
             ctx2d.beginPath();
-            ctx2d.moveTo(tx, offY + imgH * scale);
-            ctx2d.lineTo(tx, offY + imgH * scale + 4);
+            ctx2d.moveTo(tickBase.x, tickBase.y);
+            ctx2d.lineTo(tickBase.x, tickBase.y + 4);
             ctx2d.stroke();
-            ctx2d.fillText(gx.toString(), tx, offY + imgH * scale + 14);
+            ctx2d.fillText(gx.toString(), tickBase.x, tickBase.y + 14);
         }
         // Tick marks along left edge (v axis)
         ctx2d.textAlign = 'right';
         for (let gy = 0; gy <= imgH; gy += 100) {
-            const ty = mapY(gy);
+            const tickBase = mapPoint(0, gy);
             ctx2d.strokeStyle = 'rgba(91, 140, 255, 0.15)';
             ctx2d.lineWidth = 1;
             ctx2d.beginPath();
-            ctx2d.moveTo(offX, ty);
-            ctx2d.lineTo(offX - 4, ty);
+            ctx2d.moveTo(tickBase.x, tickBase.y);
+            ctx2d.lineTo(tickBase.x - 4, tickBase.y);
             ctx2d.stroke();
-            ctx2d.fillText(gy.toString(), offX - 6, ty + 3);
+            ctx2d.fillText(gy.toString(), tickBase.x - 6, tickBase.y + 3);
         }
         ctx2d.textAlign = 'start';
 
         // Principal point crosshair
-        const ppx = mapX(params.cx);
-        const ppy = mapY(params.cy);
+        const principalPoint = mapPoint(params.cx, params.cy);
+        const ppx = principalPoint.x;
+        const ppy = principalPoint.y;
         ctx2d.strokeStyle = 'rgba(139, 92, 246, 0.4)';
         ctx2d.lineWidth = 1;
         ctx2d.setLineDash([4, 4]);
-        ctx2d.beginPath();
-        ctx2d.moveTo(ppx, offY);
-        ctx2d.lineTo(ppx, offY + imgH * scale);
-        ctx2d.stroke();
-        ctx2d.beginPath();
-        ctx2d.moveTo(offX, ppy);
-        ctx2d.lineTo(offX + imgW * scale, ppy);
-        ctx2d.stroke();
+        drawLine(mapPoint(params.cx, 0), mapPoint(params.cx, imgH));
+        drawLine(mapPoint(0, params.cy), mapPoint(imgW, params.cy));
         ctx2d.setLineDash([]);
 
         // Principal point marker
@@ -597,18 +642,19 @@
 
         // Projected point
         if (!behindCamera && isFinite(u) && isFinite(v)) {
-            const px = mapX(u);
-            const py = mapY(v);
-            const imgLeft = offX;
-            const imgRight = offX + imgW * scale;
-            const imgTop = offY;
-            const imgBottom = offY + imgH * scale;
-            const inBounds = px >= imgLeft && px <= imgRight && py >= imgTop && py <= imgBottom;
+            const projectedPoint = mapPoint(u, v);
+            const px = projectedPoint.x;
+            const py = projectedPoint.y;
+            const inBounds = u >= 0 && u <= imgW && v >= 0 && v <= imgH;
 
             // Clamp position for drawing when out of bounds
             const margin = 15;
-            const drawPx = Math.max(imgLeft + margin, Math.min(imgRight - margin, px));
-            const drawPy = Math.max(imgTop + margin, Math.min(imgBottom - margin, py));
+            const clampedPoint = mapPoint(
+                Math.max(0, Math.min(imgW, u)),
+                Math.max(0, Math.min(imgH, v))
+            );
+            const drawPx = Math.max(planeMinX + margin, Math.min(planeMaxX - margin, clampedPoint.x));
+            const drawPy = Math.max(planeMinY + margin, Math.min(planeMaxY - margin, clampedPoint.y));
 
             // Projection line from principal point to projected point
             ctx2d.strokeStyle = inBounds ? 'rgba(251, 146, 60, 0.35)' : 'rgba(248, 113, 113, 0.25)';
@@ -651,8 +697,8 @@
                 ctx2d.font = '12px "JetBrains Mono", monospace';
                 const labelText = `(${fmt(u,1)}, ${fmt(v,1)})`;
                 const textMetrics = ctx2d.measureText(labelText);
-                const textOff = px > imgRight - textMetrics.width - 20 ? -textMetrics.width - 12 : 12;
-                const textYOff = py < imgTop + 25 ? 20 : -12;
+                const textOff = px > planeMaxX - textMetrics.width - 20 ? -textMetrics.width - 12 : 12;
+                const textYOff = py < planeMinY + 25 ? 20 : -12;
                 ctx2d.fillText(labelText, px + textOff, py + textYOff);
             } else {
                 // Out of bounds: draw arrow at edge pointing toward actual position
@@ -681,7 +727,7 @@
                 ctx2d.fillStyle = 'rgba(248, 113, 113, 0.85)';
                 ctx2d.font = '11px "JetBrains Mono", monospace';
                 ctx2d.textAlign = 'right';
-                ctx2d.fillText(`Out of frame: (${fmt(u,1)}, ${fmt(v,1)})`, imgRight - 5, imgTop + 15);
+                ctx2d.fillText(`Out of frame: (${fmt(u,1)}, ${fmt(v,1)})`, planeMaxX - 5, planeMinY + 15);
                 ctx2d.textAlign = 'start';
             }
         } else {
@@ -699,9 +745,11 @@
         // Axis labels
         ctx2d.fillStyle = 'rgba(148, 163, 192, 0.6)';
         ctx2d.font = '10px "JetBrains Mono", monospace';
-        ctx2d.fillText('u →', offX + 4, offY + imgH * scale + 24);
+        const uLabel = mapPoint(0, 0);
+        const vLabel = mapPoint(0, 0);
+        ctx2d.fillText('u →', uLabel.x + 4, uLabel.y + 24);
         ctx2d.save();
-        ctx2d.translate(offX - 14, offY + imgH * scale - 4);
+        ctx2d.translate(vLabel.x - 14, vLabel.y - 4);
         ctx2d.rotate(-Math.PI / 2);
         ctx2d.fillText('v →', 0, 0);
         ctx2d.restore();
@@ -710,7 +758,8 @@
         ctx2d.fillStyle = 'rgba(148, 163, 192, 0.4)';
         ctx2d.font = '9px "JetBrains Mono", monospace';
         ctx2d.textAlign = 'right';
-        ctx2d.fillText(`${imgW}×${imgH} px`, offX + imgW * scale, offY + imgH * scale + 24);
+        const sizeLabel = mapPoint(imgW, 0);
+        ctx2d.fillText(`${imgW}×${imgH} px`, sizeLabel.x, sizeLabel.y + 24);
         ctx2d.textAlign = 'start';
     }
 
