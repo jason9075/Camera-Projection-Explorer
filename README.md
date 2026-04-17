@@ -1,6 +1,6 @@
 # 📷 Camera Projection Explorer
 
-**[🔗 Live Demo](https://jason9075.github.io/camera_pos_page/)** for understanding the **geometric foundations of camera projection** — coordinate system transformations, extrinsic & intrinsic parameters, the pinhole camera model, and homogeneous coordinates.
+**[🔗 Live Demo](https://jason9075.github.io/Camera-Projection-Explorer/)** for understanding the **geometric foundations of camera projection** — coordinate system transformations, extrinsic & intrinsic parameters, the pinhole camera model, and homogeneous coordinates.
 
 ## Features
 
