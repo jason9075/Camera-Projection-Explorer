@@ -1,5 +1,5 @@
 // ============================================================
-//  Camera Calibration Explorer — Main Application Logic
+//  Camera Projection Explorer — Main Application Logic
 // ============================================================
 
 (function () {
