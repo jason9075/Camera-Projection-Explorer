@@ -17,7 +17,8 @@
         <div class="header-content">
             <h1>Camera Calibration Explorer</h1>
             <p class="subtitle">Geometric Models & Coordinate System Transformations</p>
-            <p class="subtitle">Right-handed coordinate system, Z-up world frame</p>
+            <p class="subtitle">Right-handed world frame, Z-up. Camera axes follow Isaac Sim default: +X right, +Y up, -Z forward.</p>
+            <p class="subtitle">Reference: <a href="https://docs.isaacsim.omniverse.nvidia.com/4.2.0/reference_conventions.html" target="_blank" rel="noopener noreferrer">Isaac Sim Conventions</a></p>
         </div>
         <button id="reset-btn" title="Reset all parameters to defaults">↺ Reset</button>
     </header>
@@ -163,7 +164,7 @@
                     <div class="formula" id="formula-intrinsic"></div>
                 </div>
                 <div class="math-block">
-                    <h4>Projected q = K · P<sub>c</sub></h4>
+                    <h4>Projected q = K · [X<sub>c</sub>, -Y<sub>c</sub>, -Z<sub>c</sub>]<sup>T</sup></h4>
                     <div class="formula" id="formula-proj"></div>
                 </div>
                 <div class="math-block">
@@ -181,7 +182,7 @@
                 <div class="card-icon">🌐</div>
                 <h3>Coordinate Systems</h3>
                 <p><strong>World</strong> (X<sub>w</sub>, Y<sub>w</sub>, Z<sub>w</sub>): Right-handed global 3D reference frame (+Z points Up).<br>
-                <strong>Camera</strong> (X<sub>c</sub>, Y<sub>c</sub>, Z<sub>c</sub>): Origin at the camera center, X-axis points forward.<br>
+                <strong>Camera</strong> (X<sub>c</sub>, Y<sub>c</sub>, Z<sub>c</sub>): Isaac Sim default camera axes, with +X right, +Y up, and -Z forward.<br>
                 <strong>Image</strong> (u, v): 2D pixel coordinates on the image plane.</p>
             </div>
             <div class="concept-card">
@@ -229,6 +230,166 @@
                 <span class="step-num">4</span>
                 <span>Perspective divide → Pixel (u, v)</span>
             </div>
+        </div>
+    </section>
+
+    <section id="cpp-pseudocode">
+        <h2>Reference Code</h2>
+        <p class="code-intro">Minimal reference for the world-to-camera transform and image-plane projection used in this demo.</p>
+        <div class="code-tabs" role="tablist" aria-label="Reference code languages">
+            <button class="code-tab is-active" data-code-target="cpp" role="tab" aria-selected="true">C++</button>
+            <button class="code-tab" data-code-target="python" role="tab" aria-selected="false">Python</button>
+            <button class="code-tab" data-code-target="golang" role="tab" aria-selected="false">Go</button>
+            <button class="code-tab" data-code-target="javascript" role="tab" aria-selected="false">JavaScript</button>
+            <button class="code-tab" data-code-target="java" role="tab" aria-selected="false">Java</button>
+        </div>
+
+        <div class="code-panels">
+            <pre class="code-panel is-active" data-code-panel="cpp"><code><span class="tok-keyword">struct</span> <span class="tok-type">Params</span> {
+    <span class="tok-type">Vec3</span> Pw;          <span class="tok-comment">// world point</span>
+    <span class="tok-type">Vec3</span> rotDeg;      <span class="tok-comment">// roll, pitch, yaw</span>
+    <span class="tok-type">Vec3</span> t;           <span class="tok-comment">// camera position in world frame</span>
+    <span class="tok-type">double</span> fx, fy;
+    <span class="tok-type">double</span> cx, cy;
+    <span class="tok-type">double</span> skew;
+};
+
+<span class="tok-type">Mat3</span> R_user = <span class="tok-fn">RotationMatrixZYX</span>(params.rotDeg.x, params.rotDeg.y, params.rotDeg.z);
+<span class="tok-type">Mat3</span> R_base = {
+    { <span class="tok-num">0.0</span>, <span class="tok-num">-1.0</span>,  <span class="tok-num">0.0</span> },
+    { <span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span> },
+    { <span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span> }
+};
+<span class="tok-type">Mat3</span> R = R_user * R_base;
+<span class="tok-type">Vec3</span> Pc = R * (params.Pw - params.t);   <span class="tok-comment">// Isaac Sim camera axes</span>
+
+<span class="tok-type">Mat3</span> K = {
+    { params.fx, params.skew, params.cx },
+    { <span class="tok-num">0.0</span>,       params.fy,   params.cy },
+    { <span class="tok-num">0.0</span>,       <span class="tok-num">0.0</span>,         <span class="tok-num">1.0</span>       }
+};
+
+<span class="tok-type">Vec3</span> Pproj = { Pc.x, -Pc.y, -Pc.z };    <span class="tok-comment">// image-facing coordinates</span>
+<span class="tok-type">Vec3</span> q = K * Pproj;
+
+<span class="tok-keyword">if</span> (-Pc.z &lt;= <span class="tok-num">0.0</span>) {
+    <span class="tok-comment">// point is behind the camera</span>
+} <span class="tok-keyword">else</span> {
+    <span class="tok-type">double</span> u = q.x / q.z;
+    <span class="tok-type">double</span> v = q.y / q.z;
+}</code></pre>
+
+            <pre class="code-panel" data-code-panel="python"><code><span class="tok-keyword">def</span> <span class="tok-fn">project_point</span>(params):
+    R_user = <span class="tok-fn">rotation_matrix_zyx</span>(params[<span class="tok-str">'roll'</span>], params[<span class="tok-str">'pitch'</span>], params[<span class="tok-str">'yaw'</span>])
+    R_base = [
+        [<span class="tok-num">0.0</span>, <span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>],
+        [<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>],
+        [<span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>],
+    ]
+    R = <span class="tok-fn">matmul3</span>(R_user, R_base)
+    Pc = <span class="tok-fn">matvec3</span>(R, <span class="tok-fn">sub3</span>(params[<span class="tok-str">'Pw'</span>], params[<span class="tok-str">'t'</span>]))
+
+    Pproj = [Pc[<span class="tok-num">0</span>], -Pc[<span class="tok-num">1</span>], -Pc[<span class="tok-num">2</span>]]
+    K = [
+        [params[<span class="tok-str">'fx'</span>], params[<span class="tok-str">'skew'</span>], params[<span class="tok-str">'cx'</span>]],
+        [<span class="tok-num">0.0</span>, params[<span class="tok-str">'fy'</span>], params[<span class="tok-str">'cy'</span>]],
+        [<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>],
+    ]
+    q = <span class="tok-fn">matvec3</span>(K, Pproj)
+
+    <span class="tok-keyword">if</span> -Pc[<span class="tok-num">2</span>] &lt;= <span class="tok-num">0.0</span>:
+        <span class="tok-keyword">return</span> <span class="tok-keyword">None</span>
+
+    u = q[<span class="tok-num">0</span>] / q[<span class="tok-num">2</span>]
+    v = q[<span class="tok-num">1</span>] / q[<span class="tok-num">2</span>]
+    <span class="tok-keyword">return</span> u, v</code></pre>
+
+            <pre class="code-panel" data-code-panel="golang"><code><span class="tok-keyword">type</span> <span class="tok-type">Params</span> <span class="tok-keyword">struct</span> {
+    Pw    <span class="tok-type">Vec3</span>
+    Rot   <span class="tok-type">Vec3</span>
+    T     <span class="tok-type">Vec3</span>
+    Fx    <span class="tok-type">float64</span>
+    Fy    <span class="tok-type">float64</span>
+    Cx    <span class="tok-type">float64</span>
+    Cy    <span class="tok-type">float64</span>
+    Skew  <span class="tok-type">float64</span>
+}
+
+<span class="tok-keyword">func</span> <span class="tok-fn">ProjectPoint</span>(p <span class="tok-type">Params</span>) (<span class="tok-type">float64</span>, <span class="tok-type">float64</span>, <span class="tok-type">bool</span>) {
+    RUser := <span class="tok-fn">RotationMatrixZYX</span>(p.Rot.X, p.Rot.Y, p.Rot.Z)
+    RBase := <span class="tok-type">Mat3</span>{
+        {<span class="tok-num">0.0</span>, <span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>},
+        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
+        {<span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>},
+    }
+    R := <span class="tok-fn">MatMul3</span>(RUser, RBase)
+    Pc := <span class="tok-fn">MatVec3</span>(R, <span class="tok-fn">Sub3</span>(p.Pw, p.T))
+    Pproj := <span class="tok-type">Vec3</span>{Pc.X, -Pc.Y, -Pc.Z}
+
+    K := <span class="tok-type">Mat3</span>{
+        {p.Fx, p.Skew, p.Cx},
+        {<span class="tok-num">0.0</span>, p.Fy, p.Cy},
+        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
+    }
+    q := <span class="tok-fn">MatVec3</span>(K, Pproj)
+
+    <span class="tok-keyword">if</span> -Pc.Z &lt;= <span class="tok-num">0.0</span> {
+        <span class="tok-keyword">return</span> <span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-keyword">false</span>
+    }
+    <span class="tok-keyword">return</span> q.X / q.Z, q.Y / q.Z, <span class="tok-keyword">true</span>
+}</code></pre>
+
+            <pre class="code-panel" data-code-panel="javascript"><code><span class="tok-keyword">function</span> <span class="tok-fn">projectPoint</span>(params) {
+    <span class="tok-keyword">const</span> RUser = <span class="tok-fn">rotationMatrixZYX</span>(params.rot[<span class="tok-num">0</span>], params.rot[<span class="tok-num">1</span>], params.rot[<span class="tok-num">2</span>]);
+    <span class="tok-keyword">const</span> RBase = [
+        [<span class="tok-num">0</span>, <span class="tok-num">-1</span>, <span class="tok-num">0</span>],
+        [<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">1</span>],
+        [<span class="tok-num">-1</span>, <span class="tok-num">0</span>, <span class="tok-num">0</span>],
+    ];
+    <span class="tok-keyword">const</span> R = <span class="tok-fn">matMul3</span>(RUser, RBase);
+    <span class="tok-keyword">const</span> Pc = <span class="tok-fn">matVec3</span>(R, [
+        params.pw[<span class="tok-num">0</span>] - params.t[<span class="tok-num">0</span>],
+        params.pw[<span class="tok-num">1</span>] - params.t[<span class="tok-num">1</span>],
+        params.pw[<span class="tok-num">2</span>] - params.t[<span class="tok-num">2</span>],
+    ]);
+
+    <span class="tok-keyword">const</span> Pproj = [Pc[<span class="tok-num">0</span>], -Pc[<span class="tok-num">1</span>], -Pc[<span class="tok-num">2</span>]];
+    <span class="tok-keyword">const</span> K = [
+        [params.fx, params.skew, params.cx],
+        [<span class="tok-num">0</span>, params.fy, params.cy],
+        [<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">1</span>],
+    ];
+    <span class="tok-keyword">const</span> q = <span class="tok-fn">matVec3</span>(K, Pproj);
+
+    <span class="tok-keyword">if</span> (-Pc[<span class="tok-num">2</span>] &lt;= <span class="tok-num">0</span>) {
+        <span class="tok-keyword">return</span> <span class="tok-keyword">null</span>;
+    }
+    <span class="tok-keyword">return</span> { u: q[<span class="tok-num">0</span>] / q[<span class="tok-num">2</span>], v: q[<span class="tok-num">1</span>] / q[<span class="tok-num">2</span>] };
+}</code></pre>
+
+            <pre class="code-panel" data-code-panel="java"><code><span class="tok-keyword">public</span> <span class="tok-keyword">static</span> <span class="tok-type">ProjectionResult</span> <span class="tok-fn">projectPoint</span>(<span class="tok-type">Params</span> params) {
+    <span class="tok-type">Mat3</span> rUser = <span class="tok-fn">rotationMatrixZYX</span>(params.rot.x, params.rot.y, params.rot.z);
+    <span class="tok-type">Mat3</span> rBase = <span class="tok-keyword">new</span> <span class="tok-type">Mat3</span>(<span class="tok-keyword">new</span> <span class="tok-type">double</span>[][]{
+        {<span class="tok-num">0.0</span>, <span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>},
+        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
+        {<span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>}
+    });
+    <span class="tok-type">Mat3</span> r = <span class="tok-fn">matMul3</span>(rUser, rBase);
+    <span class="tok-type">Vec3</span> pc = <span class="tok-fn">matVec3</span>(r, <span class="tok-fn">sub3</span>(params.pw, params.t));
+
+    <span class="tok-type">Vec3</span> pProj = <span class="tok-keyword">new</span> <span class="tok-type">Vec3</span>(pc.x, -pc.y, -pc.z);
+    <span class="tok-type">Mat3</span> k = <span class="tok-keyword">new</span> <span class="tok-type">Mat3</span>(<span class="tok-keyword">new</span> <span class="tok-type">double</span>[][]{
+        {params.fx, params.skew, params.cx},
+        {<span class="tok-num">0.0</span>, params.fy, params.cy},
+        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>}
+    });
+    <span class="tok-type">Vec3</span> q = <span class="tok-fn">matVec3</span>(k, pProj);
+
+    <span class="tok-keyword">if</span> (-pc.z &lt;= <span class="tok-num">0.0</span>) {
+        <span class="tok-keyword">return</span> <span class="tok-keyword">null</span>;
+    }
+    <span class="tok-keyword">return</span> <span class="tok-keyword">new</span> <span class="tok-type">ProjectionResult</span>(q.x / q.z, q.y / q.z);
+}</code></pre>
         </div>
     </section>
 

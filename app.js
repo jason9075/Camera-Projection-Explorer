@@ -73,6 +73,26 @@
         ];
     }
 
+    function matMul3(A, B) {
+        return [
+            [
+                A[0][0]*B[0][0] + A[0][1]*B[1][0] + A[0][2]*B[2][0],
+                A[0][0]*B[0][1] + A[0][1]*B[1][1] + A[0][2]*B[2][1],
+                A[0][0]*B[0][2] + A[0][1]*B[1][2] + A[0][2]*B[2][2],
+            ],
+            [
+                A[1][0]*B[0][0] + A[1][1]*B[1][0] + A[1][2]*B[2][0],
+                A[1][0]*B[0][1] + A[1][1]*B[1][1] + A[1][2]*B[2][1],
+                A[1][0]*B[0][2] + A[1][1]*B[1][2] + A[1][2]*B[2][2],
+            ],
+            [
+                A[2][0]*B[0][0] + A[2][1]*B[1][0] + A[2][2]*B[2][0],
+                A[2][0]*B[0][1] + A[2][1]*B[1][1] + A[2][2]*B[2][1],
+                A[2][0]*B[0][2] + A[2][1]*B[1][2] + A[2][2]*B[2][2],
+            ],
+        ];
+    }
+
 
     function fmt(n, d=2) {
         return Number(n).toFixed(d);
@@ -94,34 +114,36 @@
 
     // ---- Compute transforms ----
     function computeTransforms(params) {
-        // Convention: Xc = forward (depth), Yc = right, Zc = up.
-        // With R=I, camera looks along world +X.
-        const R = rotationMatrix(params.rot[0], params.rot[1], params.rot[2]);
+        // Isaac Sim / USD camera axes:
+        // Xc = right, Yc = up, -Zc = forward.
+        // With user rotation = 0, the camera looks along world +X.
+        const RUser = rotationMatrix(params.rot[0], params.rot[1], params.rot[2]);
+        const RBase = [
+            [0, -1,  0],
+            [0,  0,  1],
+            [-1, 0,  0],
+        ];
+        const R = matMul3(RUser, RBase);
         const pw = params.pw;
         const t = params.t;
 
-        // Camera point: Pc = R * (Pw − t)  where t = camera position in world frame
-        const Rpw = matVec3(R, [pw[0]-t[0], pw[1]-t[1], pw[2]-t[2]]);
-        const pc = Rpw;
+        // Camera point in Isaac Sim default camera axes.
+        const pc = matVec3(R, [pw[0]-t[0], pw[1]-t[1], pw[2]-t[2]]);
 
-        // Intrinsic projection — Xc-forward convention:
-        //   Camera frame: X=forward, Z=up  →  right-hand rule: right = -(X×Z) = +Y...
-        //   but physically: facing +X with +Z up → right = forward×up = X×Z = -Y.
-        //   So camera RIGHT = -Yc, camera LEFT = +Yc.
-        //   u = cx - fx*(Yc/Xc) + skew*(Zc/Xc)   [+Yc = camera left → u < cx]
-        //   v = cy + fy*(Zc/Xc)                   [+Zc = camera up  → v > cy]
-        // K expressed so that q = K * Pc gives (u*Xc, v*Xc, Xc):
+        // Standard pinhole K applied to the image-facing camera vector:
+        //   Ximg = Xc (right), Yimg = -Yc (down), Zimg = -Zc (forward depth).
+        const pImg = [pc[0], -pc[1], -pc[2]];
         const K = [
-            [params.cx, -params.fx, params.skew],
-            [params.cy, 0,          params.fy  ],
-            [1,         0,          0           ],
+            [params.fx, params.skew, params.cx],
+            [0,         params.fy,   params.cy],
+            [0,         0,           1        ],
         ];
-        const q = matVec3(K, pc);
-        const behindCamera = pc[0] <= 0;   // Xc is depth
+        const q = matVec3(K, pImg);
+        const behindCamera = pImg[2] <= 0;
         const u = behindCamera ? NaN : q[0] / q[2];
         const v = behindCamera ? NaN : q[1] / q[2];
 
-        return { R, pw, t, pc, K, q, u, v, behindCamera };
+        return { R, pw, t, pc, pImg, K, q, u, v, behindCamera };
     }
 
     // ---- Matrix HTML helpers ----
@@ -177,14 +199,15 @@
                         [`<span class="val-camera">${fmt(pc[1])}</span>`],
                         [`<span class="val-camera">${fmt(pc[2])}</span>`]], '') + warnBadge;
 
-        // Intrinsic K (Xc-forward: u = cx − fx·(Yc/Xc), v = cy + fy·(Zc/Xc))
+        // Intrinsic K (standard form) and the image-facing camera vector.
         document.getElementById('formula-intrinsic').innerHTML =
             `K = ` +
             matrixHTML([
                 [`<span class="val-intrinsic">${fmt(K[0][0],0)}</span>`, `<span class="val-intrinsic">${fmt(K[0][1],0)}</span>`, `<span class="val-intrinsic">${fmt(K[0][2],0)}</span>`],
-                [`<span class="val-intrinsic">${fmt(K[1][0],0)}</span>`, `0`, `<span class="val-intrinsic">${fmt(K[1][2],0)}</span>`],
-                [`1`, `0`, `0`],
-            ], '');
+                [`0`, `<span class="val-intrinsic">${fmt(K[1][1],0)}</span>`, `<span class="val-intrinsic">${fmt(K[1][2],0)}</span>`],
+                [`0`, `0`, `1`],
+            ], '') +
+            `<div style="margin-top:0.7rem;color:var(--text-dim)">Projection uses [X<sub>c</sub>, -Y<sub>c</sub>, -Z<sub>c</sub>]<sup>T</sup> so image coordinates stay u-right, v-down.</div>`;
 
         // Projected q
         document.getElementById('formula-proj').innerHTML =
@@ -205,15 +228,11 @@
             `<span class="operator">=</span>` +
             `<span class="val-intrinsic">K</span>` +
             `<span class="operator">·</span>` +
-            `<span class="val-camera">R</span>` +
-            `<span class="operator">·</span>` +
-            `<span class="operator">(</span>` +
-            `<span class="val-world">P<sub>w</sub></span>` +
-            `<span class="operator">−</span>` +
-            `<span class="val-camera">t</span>` +
-            `<span class="operator">)</span>` +
+            `<span class="val-camera">[X<sub>c</sub>, -Y<sub>c</sub>, -Z<sub>c</sub>]<sup>T</sup></span>` +
             `<br>` +
-            `<span style="color:var(--text-dim)">Pixel: (u, v) = (q<sub>1</sub>/q<sub>3</sub> , q<sub>2</sub>/q<sub>3</sub>)  where q<sub>3</sub> = X<sub>c</sub> (depth),  t = camera position in world</span>` +
+            `<span style="color:var(--text-dim)">where P<sub>c</sub> = R · (P<sub>w</sub> − t) in Isaac Sim default camera axes</span>` +
+            `<br>` +
+            `<span style="color:var(--text-dim)">Pixel: (u, v) = (q<sub>1</sub>/q<sub>3</sub> , q<sub>2</sub>/q<sub>3</sub>) where q<sub>3</sub> = -Z<sub>c</sub> (forward depth), t = camera position in world</span>` +
             `<br>` +
             `<span style="color:var(--text-dim)">(u, v) = (${uStr}, ${vStr})</span>`;
     }
@@ -295,18 +314,18 @@
     const cameraGroup = new THREE.Group();
     scene.add(cameraGroup);
 
-    // Camera body (box) — elongated along local X (Xc = forward)
-    const camBodyGeom = new THREE.BoxGeometry(0.6, 0.35, 0.5);
+    // Camera body in Isaac Sim default camera axes: +X right, +Y up, -Z forward.
+    const camBodyGeom = new THREE.BoxGeometry(0.35, 0.5, 0.6);
     const camBodyMat = new THREE.MeshStandardMaterial({ color: 0x5b8cff, emissive: 0x3366cc, emissiveIntensity: 0.3, transparent: true, opacity: 0.85 });
     const camBody = new THREE.Mesh(camBodyGeom, camBodyMat);
     cameraGroup.add(camBody);
 
-    // Camera lens — points along local +X (Xc = forward)
+    // Camera lens — points along local -Z (forward)
     const lensGeom = new THREE.CylinderGeometry(0.12, 0.15, 0.25, 16);
     const lensMat = new THREE.MeshStandardMaterial({ color: 0x222244, emissive: 0x111122, emissiveIntensity: 0.2 });
     const lens = new THREE.Mesh(lensGeom, lensMat);
-    lens.rotation.z = -Math.PI / 2;   // CylinderGeometry axis is Y; rotate to align with X
-    lens.position.x = 0.42;
+    lens.rotation.x = Math.PI / 2;   // CylinderGeometry axis is Y; rotate to align with Z
+    lens.position.z = -0.42;
     cameraGroup.add(lens);
 
     // Camera axes
@@ -343,9 +362,9 @@
         const imgH = Math.max(params.cy * 2, 1);
 
         function imagePointToCamera(u, v, depth) {
-            const zOverX = (v - params.cy) / params.fy;
-            const yOverX = (params.cx - u + params.skew * zOverX) / params.fx;
-            return [depth, yOverX * depth, zOverX * depth];
+            const yImgOverZ = (v - params.cy) / params.fy;
+            const xImgOverZ = (u - params.cx - params.skew * yImgOverZ) / params.fx;
+            return [xImgOverZ * depth, -yImgOverZ * depth, -depth];
         }
 
         const nearCorners = [
@@ -497,7 +516,7 @@
     const ctx2d = canvas2d.getContext('2d');
 
     function draw2DViewport(params, data) {
-        const { u, v, behindCamera, pc, K } = data;
+        const { u, v, behindCamera } = data;
         const dpr = Math.min(window.devicePixelRatio, 2);
         const rect = canvas2d.getBoundingClientRect();
         const w = rect.width;
@@ -735,7 +754,7 @@
             ctx2d.fillStyle = 'rgba(248, 113, 113, 0.8)';
             ctx2d.font = '14px "Inter", sans-serif';
             ctx2d.textAlign = 'center';
-            ctx2d.fillText('Point is behind the camera (Xc ≤ 0)', w / 2, h / 2);
+            ctx2d.fillText('Point is behind the camera (-Zc ≤ 0)', w / 2, h / 2);
             ctx2d.font = '11px "Inter", sans-serif';
             ctx2d.fillStyle = 'rgba(248, 113, 113, 0.5)';
             ctx2d.fillText('Move the world point or adjust camera translation', w / 2, h / 2 + 22);
@@ -851,6 +870,24 @@
         el.style.transform = 'translateY(20px)';
         el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
         observer.observe(el);
+    });
+
+    // Language tabs for the reference code block
+    const codeTabs = document.querySelectorAll('.code-tab');
+    const codePanels = document.querySelectorAll('.code-panel');
+
+    codeTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const target = tab.dataset.codeTarget;
+            codeTabs.forEach(btn => {
+                const active = btn === tab;
+                btn.classList.toggle('is-active', active);
+                btn.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            codePanels.forEach(panel => {
+                panel.classList.toggle('is-active', panel.dataset.codePanel === target);
+            });
+        });
     });
 
 })();

@@ -112,6 +112,17 @@ body {
     position: relative;
 }
 
+.subtitle a {
+    color: var(--accent-cyan);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(34, 211, 238, 0.35);
+}
+
+.subtitle a:hover {
+    color: #7ee7f7;
+    border-bottom-color: rgba(126, 231, 247, 0.7);
+}
+
 #reset-btn {
     position: relative;
     font-family: var(--font-mono);
@@ -572,6 +583,119 @@ input[type="range"]::-moz-range-thumb {
 .pipeline-arrow {
     font-size: 1.3rem;
     color: var(--text-dim);
+}
+
+/* ===== C++ Pseudo Code ===== */
+#cpp-pseudocode {
+    max-width: 1100px;
+    margin: 0 auto 2.5rem;
+    padding: 0 1.5rem;
+}
+
+#cpp-pseudocode h2 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+    text-align: center;
+}
+
+.code-intro {
+    color: var(--text-secondary);
+    text-align: center;
+    margin-bottom: 1rem;
+    font-size: 0.92rem;
+}
+
+.code-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 0.9rem;
+}
+
+.code-tab {
+    border: 1px solid var(--border-subtle);
+    background: rgba(15, 22, 42, 0.82);
+    color: var(--text-secondary);
+    border-radius: 999px;
+    padding: 0.45rem 0.85rem;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition:
+        color var(--transition-fast),
+        border-color var(--transition-fast),
+        background var(--transition-fast),
+        transform var(--transition-fast);
+}
+
+.code-tab:hover {
+    color: var(--text-primary);
+    border-color: var(--border-accent);
+    transform: translateY(-1px);
+}
+
+.code-tab.is-active {
+    color: #08101f;
+    background: linear-gradient(135deg, #7ea0ff 0%, #22d3ee 100%);
+    border-color: transparent;
+    font-weight: 700;
+}
+
+.code-panels {
+    position: relative;
+}
+
+#cpp-pseudocode .code-panel {
+    display: none;
+}
+
+#cpp-pseudocode .code-panel.is-active {
+    display: block;
+}
+
+#cpp-pseudocode pre {
+    margin: 0;
+    padding: 1.25rem 1.4rem;
+    background:
+        linear-gradient(180deg, rgba(8, 12, 24, 0.96), rgba(12, 18, 34, 0.96));
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-soft);
+    overflow-x: auto;
+}
+
+#cpp-pseudocode code {
+    font-family: var(--font-mono);
+    font-size: 0.88rem;
+    line-height: 1.7;
+    color: var(--text-primary);
+}
+
+.tok-keyword {
+    color: #ff7ab6;
+}
+
+.tok-type {
+    color: #8ad6ff;
+}
+
+.tok-fn {
+    color: #ffd166;
+}
+
+.tok-num {
+    color: #b794f4;
+}
+
+.tok-str {
+    color: #7ee787;
+}
+
+.tok-comment {
+    color: #7d8596;
 }
 
 /* ===== Footer ===== */
