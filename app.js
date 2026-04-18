@@ -28,7 +28,7 @@
             ],
             frustumImgToCamera: (u, v, d, p) => {
                 const yIZ = (v - p.cy) / p.fy;
-                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                const xIZ = (u - p.cx + p.skew * yIZ) / p.fx;
                 return [xIZ * d, -yIZ * d, -d];
             },
             subtitle: 'Right-hand · Z-up · Camera: +X right, +Y up, −Z forward (USD/Isaac Sim). Zero rotation looks toward world −Z.',
@@ -57,7 +57,7 @@
             ],
             frustumImgToCamera: (u, v, d, p) => {
                 const yIZ = (v - p.cy) / p.fy;
-                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                const xIZ = (u - p.cx + p.skew * yIZ) / p.fx;
                 return [xIZ * d, -yIZ * d, -d];
             },
             subtitle: 'Right-hand · Z-up · Camera: +X right, +Y up, −Z forward. Zero rotation looks toward world −Z.',
@@ -86,7 +86,7 @@
             ],
             frustumImgToCamera: (u, v, d, p) => {
                 const yIZ = (v - p.cy) / p.fy;
-                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                const xIZ = (u - p.cx + p.skew * yIZ) / p.fx;
                 return [xIZ * d, yIZ * d, -d];
             },
             subtitle: 'Right-hand · Y-up · Camera: +X right, +Y up, −Z forward. Looks toward world −Z at zero rotation.',
@@ -115,7 +115,7 @@
             ],
             frustumImgToCamera: (u, v, d, p) => {
                 const yIZ = (v - p.cy) / p.fy;
-                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                const xIZ = (u - p.cx + p.skew * yIZ) / p.fx;
                 return [xIZ * d, -yIZ * d, -d];
             },
             subtitle: 'Right-hand · Y-up · Same 3D convention as OpenGL. Vulkan NDC Y↓ is a framebuffer-level flip, not a 3D scene change.',
@@ -144,7 +144,7 @@
             ],
             frustumImgToCamera: (u, v, d, p) => {
                 const yIZ = (v - p.cy) / p.fy;
-                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                const xIZ = (u - p.cx + p.skew * yIZ) / p.fx;
                 return [xIZ * d, -yIZ * d, -d];
             },
             subtitle: 'Right-hand · Y-up · Camera: +X right, +Y up, −Z forward. Looks toward world −Z at zero rotation.',
@@ -173,7 +173,7 @@
             ],
             frustumImgToCamera: (u, v, d, p) => {
                 const yIZ = (v - p.cy) / p.fy;
-                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                const xIZ = (u - p.cx + p.skew * yIZ) / p.fx;
                 return [xIZ * d, yIZ * d, d];
             },
             subtitle: 'Left-hand · Y-up · Camera: +X right, +Y up, +Z forward. Looks toward world +Z at zero rotation.',
@@ -202,7 +202,7 @@
             ],
             frustumImgToCamera: (u, v, d, p) => {
                 const yIZ = (v - p.cy) / p.fy;
-                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                const xIZ = (u - p.cx + p.skew * yIZ) / p.fx;
                 return [d, xIZ * d, -yIZ * d];
             },
             subtitle: 'Left-hand · Z-up · Camera: +X forward, +Y right, +Z up. Looks toward world +X at zero rotation.',
@@ -231,7 +231,7 @@
             ],
             frustumImgToCamera: (u, v, d, p) => {
                 const yIZ = (v - p.cy) / p.fy;
-                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                const xIZ = (u - p.cx + p.skew * yIZ) / p.fx;
                 return [xIZ * d, -yIZ * d, d];
             },
             subtitle: 'Left-hand · Y-up · Camera: +X right, +Y up, +Z forward. Looks toward world +Z at zero rotation.',
