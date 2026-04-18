@@ -123,6 +123,7 @@ body {
     border-bottom-color: rgba(126, 231, 247, 0.7);
 }
 
+#move-btn,
 #reset-btn {
     position: relative;
     font-family: var(--font-mono);
@@ -141,6 +142,7 @@ body {
     margin-top: 0.6rem;
 }
 
+#move-btn:hover,
 #reset-btn:hover {
     background: rgba(91, 140, 255, 0.25);
     border-color: rgba(91, 140, 255, 0.5);
@@ -148,8 +150,20 @@ body {
     transform: scale(1.05);
 }
 
+#move-btn:active,
 #reset-btn:active {
     transform: scale(0.97);
+}
+
+#move-btn {
+    background: rgba(27, 39, 68, 0.78);
+    border-color: rgba(91, 140, 255, 0.22);
+    color: var(--text-secondary);
+    margin-right: 0.45rem;
+}
+
+#move-btn:hover {
+    color: var(--text-primary);
 }
 
 /* ===== Preset Selector ===== */
@@ -776,6 +790,21 @@ input[type="range"]::-moz-range-thumb {
     border-top: 1px solid var(--border-subtle);
     color: var(--text-dim);
     font-size: 0.82rem;
+}
+
+#app-footer p + p {
+    margin-top: 0.45rem;
+}
+
+#app-footer a {
+    color: var(--accent-cyan);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(34, 211, 238, 0.28);
+}
+
+#app-footer a:hover {
+    color: #7ee7f7;
+    border-bottom-color: rgba(126, 231, 247, 0.6);
 }
 
 /* ===== Responsive ===== */

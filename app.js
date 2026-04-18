@@ -293,6 +293,39 @@
         updateAll();
     });
 
+    document.getElementById('move-btn').addEventListener('click', function () {
+        const preset = activePreset();
+        const params = readParams();
+        const RUser = rotationMatrix(preset, params.rot[0], params.rot[1], params.rot[2]);
+        const R = matMul3(RUser, preset.RBase);
+        const RT = transpose3(R);
+        const forward = vecNorm(preset.camForward);
+        const up = vecNorm(preset.camUp);
+        const right = vecNorm(
+            preset.handedness === 'right'
+                ? vecCross(forward, up)
+                : vecCross(up, forward)
+        );
+
+        // Move the point to a position that is clearly in front of the camera and offset to camera-left/up.
+        const localOffset = [
+            forward[0] * 1.8 - right[0] * 0.45 + up[0] * 0.45,
+            forward[1] * 1.8 - right[1] * 0.45 + up[1] * 0.45,
+            forward[2] * 1.8 - right[2] * 0.45 + up[2] * 0.45,
+        ];
+        const worldOffset = matVec3(RT, localOffset);
+        const newPw = [
+            params.t[0] + worldOffset[0],
+            params.t[1] + worldOffset[1],
+            params.t[2] + worldOffset[2],
+        ];
+
+        sliders.pwX.value = Math.max(parseFloat(sliders.pwX.min), Math.min(parseFloat(sliders.pwX.max), newPw[0])).toFixed(1);
+        sliders.pwY.value = Math.max(parseFloat(sliders.pwY.min), Math.min(parseFloat(sliders.pwY.max), newPw[1])).toFixed(1);
+        sliders.pwZ.value = Math.max(parseFloat(sliders.pwZ.min), Math.min(parseFloat(sliders.pwZ.max), newPw[2])).toFixed(1);
+        updateAll();
+    });
+
     function applyPresetResetDefaults(preset) {
         const rotDefaults = preset.resetRot || [0, 0, 0];
         sliders.rotX.defaultValue = String(rotDefaults[0]);
@@ -328,6 +361,14 @@
                 A[2][0]*B[0][1] + A[2][1]*B[1][1] + A[2][2]*B[2][1],
                 A[2][0]*B[0][2] + A[2][1]*B[1][2] + A[2][2]*B[2][2],
             ],
+        ];
+    }
+
+    function transpose3(M) {
+        return [
+            [M[0][0], M[1][0], M[2][0]],
+            [M[0][1], M[1][1], M[2][1]],
+            [M[0][2], M[1][2], M[2][2]],
         ];
     }
 
