@@ -2,6 +2,8 @@
 
 **[🔗 Live Demo](https://jason9075.github.io/Camera-Projection-Explorer/)** for understanding the **geometric foundations of camera projection** — coordinate system transformations, extrinsic & intrinsic parameters, the pinhole camera model, and homogeneous coordinates.
 
+For a concise explanation of which settings ultimately affect the final behavior of the explorer, see [KNOWLEDGE.md](./KNOWLEDGE.md).
+
 ## Features
 
 - **Split-panel visualization**
