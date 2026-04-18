@@ -525,6 +525,170 @@
             `<span style="color:var(--text-dim)">(u, v) = (${uStr}, ${vStr})</span>`;
     }
 
+    function fmtCodeNumber(n) {
+        return Number.isInteger(n) ? n.toFixed(1) : Number(n).toFixed(1);
+    }
+
+    function codeMatrixRows(rows, indent) {
+        return rows.map(row => `${indent}[${row.map(fmtCodeNumber).join(', ')}]`).join(',\n');
+    }
+
+    function presetProjectionExpr(preset, base) {
+        switch (activePresetId) {
+        case 'unreal':
+            return [`${base}.y`, `-${base}.z`, `${base}.x`];
+        case 'unity':
+            return [`${base}.x`, `${base}.y`, `${base}.z`];
+        case 'opengl':
+            return [`${base}.x`, `${base}.y`, `-${base}.z`];
+        case 'blender':
+            return [`${base}.x`, `-${base}.y`, `-${base}.z`];
+        case 'isaac-sim':
+        case 'vulkan':
+        case 'godot':
+        case 'directx':
+        default:
+            return [`${base}.x`, `-${base}.y`, activePresetId === 'directx' ? `${base}.z` : `-${base}.z`];
+        }
+    }
+
+    function updateReferenceCode() {
+        const preset = activePreset();
+        const rBaseRows = codeMatrixRows(preset.RBase, '        ');
+        const proj = presetProjectionExpr(preset, 'pc');
+        const projJS = `[${proj.join(', ')}]`;
+        const behindExpr = 'pProj[2] <= 0';
+        const projComment = `${preset.label}: ${preset.camConvention}`;
+
+        const panels = {
+            cpp: `<span class="tok-keyword">struct</span> <span class="tok-type">Params</span> {
+    <span class="tok-type">Vec3</span> Pw;          <span class="tok-comment">// world point</span>
+    <span class="tok-type">Vec3</span> rotDeg;      <span class="tok-comment">// roll, pitch, yaw</span>
+    <span class="tok-type">Vec3</span> t;           <span class="tok-comment">// camera position in world frame</span>
+    <span class="tok-type">double</span> fx, fy;
+    <span class="tok-type">double</span> cx, cy;
+    <span class="tok-type">double</span> skew;
+};
+
+<span class="tok-type">Mat3</span> R_user = <span class="tok-fn">RotationMatrixRPY</span>(preset, params.rotDeg.x, params.rotDeg.y, params.rotDeg.z);
+<span class="tok-type">Mat3</span> R_base = {
+${rBaseRows.replace(/\[/g, '{ ').replace(/\]/g, ' }')}
+};
+<span class="tok-type">Mat3</span> R = R_user * R_base;
+<span class="tok-type">Vec3</span> Pc = R * (params.Pw - params.t);   <span class="tok-comment">// ${projComment}</span>
+
+<span class="tok-type">Mat3</span> K = {
+    { params.fx, params.skew, params.cx },
+    { <span class="tok-num">0.0</span>,       params.fy,   params.cy },
+    { <span class="tok-num">0.0</span>,       <span class="tok-num">0.0</span>,         <span class="tok-num">1.0</span>       }
+};
+
+<span class="tok-type">Vec3</span> Pproj = { ${proj.join(', ')} };
+<span class="tok-type">Vec3</span> q = K * Pproj;
+
+<span class="tok-keyword">if</span> (Pproj.z &lt;= <span class="tok-num">0.0</span>) {
+    <span class="tok-comment">// point is behind the camera</span>
+} <span class="tok-keyword">else</span> {
+    <span class="tok-type">double</span> u = q.x / q.z;
+    <span class="tok-type">double</span> v = q.y / q.z;
+}`,
+            python: `<span class="tok-keyword">def</span> <span class="tok-fn">project_point</span>(params, preset):
+    R_user = <span class="tok-fn">rotation_matrix_rpy</span>(preset, params[<span class="tok-str">'roll'</span>], params[<span class="tok-str">'pitch'</span>], params[<span class="tok-str">'yaw'</span>])
+    R_base = [
+${rBaseRows}
+    ]
+    R = <span class="tok-fn">matmul3</span>(R_user, R_base)
+    Pc = <span class="tok-fn">matvec3</span>(R, <span class="tok-fn">sub3</span>(params[<span class="tok-str">'Pw'</span>], params[<span class="tok-str">'t'</span>]))  <span class="tok-comment"># ${projComment}</span>
+
+    Pproj = [${proj.map(v => v.replace(/\bpc\b/g, 'Pc')).join(', ')}]
+    K = [
+        [params[<span class="tok-str">'fx'</span>], params[<span class="tok-str">'skew'</span>], params[<span class="tok-str">'cx'</span>]],
+        [<span class="tok-num">0.0</span>, params[<span class="tok-str">'fy'</span>], params[<span class="tok-str">'cy'</span>]],
+        [<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>],
+    ]
+    q = <span class="tok-fn">matvec3</span>(K, Pproj)
+
+    <span class="tok-keyword">if</span> Pproj[<span class="tok-num">2</span>] &lt;= <span class="tok-num">0.0</span>:
+        <span class="tok-keyword">return</span> <span class="tok-keyword">None</span>
+
+    u = q[<span class="tok-num">0</span>] / q[<span class="tok-num">2</span>]
+    v = q[<span class="tok-num">1</span>] / q[<span class="tok-num">2</span>]
+    <span class="tok-keyword">return</span> u, v`,
+            golang: `<span class="tok-keyword">func</span> <span class="tok-fn">ProjectPoint</span>(p <span class="tok-type">Params</span>, preset <span class="tok-type">Preset</span>) (<span class="tok-type">float64</span>, <span class="tok-type">float64</span>, <span class="tok-type">bool</span>) {
+    RUser := <span class="tok-fn">RotationMatrixRPY</span>(preset, p.Rot.X, p.Rot.Y, p.Rot.Z)
+    RBase := <span class="tok-type">Mat3</span>{
+${rBaseRows.replace(/\[/g, '{').replace(/\]/g, '}')}
+    }
+    R := <span class="tok-fn">MatMul3</span>(RUser, RBase)
+    Pc := <span class="tok-fn">MatVec3</span>(R, <span class="tok-fn">Sub3</span>(p.Pw, p.T)) <span class="tok-comment">// ${projComment}</span>
+    Pproj := <span class="tok-type">Vec3</span>{${proj.map(v => v.replace(/\bpc\b/g, 'Pc')).join(', ')}}
+
+    K := <span class="tok-type">Mat3</span>{
+        {p.Fx, p.Skew, p.Cx},
+        {<span class="tok-num">0.0</span>, p.Fy, p.Cy},
+        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
+    }
+    q := <span class="tok-fn">MatVec3</span>(K, Pproj)
+
+    <span class="tok-keyword">if</span> Pproj.Z &lt;= <span class="tok-num">0.0</span> {
+        <span class="tok-keyword">return</span> <span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-keyword">false</span>
+    }
+    <span class="tok-keyword">return</span> q.X / q.Z, q.Y / q.Z, <span class="tok-keyword">true</span>
+}`,
+            javascript: `<span class="tok-keyword">function</span> <span class="tok-fn">projectPoint</span>(params, preset) {
+    <span class="tok-keyword">const</span> RUser = <span class="tok-fn">rotationMatrixRPY</span>(preset, params.rot[<span class="tok-num">0</span>], params.rot[<span class="tok-num">1</span>], params.rot[<span class="tok-num">2</span>]);
+    <span class="tok-keyword">const</span> RBase = [
+${rBaseRows}
+    ];
+    <span class="tok-keyword">const</span> R = <span class="tok-fn">matMul3</span>(RUser, RBase);
+    <span class="tok-keyword">const</span> Pc = <span class="tok-fn">matVec3</span>(R, [
+        params.pw[<span class="tok-num">0</span>] - params.t[<span class="tok-num">0</span>],
+        params.pw[<span class="tok-num">1</span>] - params.t[<span class="tok-num">1</span>],
+        params.pw[<span class="tok-num">2</span>] - params.t[<span class="tok-num">2</span>],
+    ]); <span class="tok-comment">// ${projComment}</span>
+
+    <span class="tok-keyword">const</span> Pproj = ${projJS};
+    <span class="tok-keyword">const</span> K = [
+        [params.fx, params.skew, params.cx],
+        [<span class="tok-num">0</span>, params.fy, params.cy],
+        [<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">1</span>],
+    ];
+    <span class="tok-keyword">const</span> q = <span class="tok-fn">matVec3</span>(K, Pproj);
+
+    <span class="tok-keyword">if</span> (Pproj[<span class="tok-num">2</span>] &lt;= <span class="tok-num">0</span>) {
+        <span class="tok-keyword">return</span> <span class="tok-keyword">null</span>;
+    }
+    <span class="tok-keyword">return</span> { u: q[<span class="tok-num">0</span>] / q[<span class="tok-num">2</span>], v: q[<span class="tok-num">1</span>] / q[<span class="tok-num">2</span>] };
+}`,
+            java: `<span class="tok-keyword">public</span> <span class="tok-keyword">static</span> <span class="tok-type">ProjectionResult</span> <span class="tok-fn">projectPoint</span>(<span class="tok-type">Params</span> params, <span class="tok-type">Preset</span> preset) {
+    <span class="tok-type">Mat3</span> rUser = <span class="tok-fn">rotationMatrixRPY</span>(preset, params.rot.x, params.rot.y, params.rot.z);
+    <span class="tok-type">Mat3</span> rBase = <span class="tok-keyword">new</span> <span class="tok-type">Mat3</span>(<span class="tok-keyword">new</span> <span class="tok-type">double</span>[][]{
+${rBaseRows.replace(/\[/g, '{').replace(/\]/g, '}')}
+    });
+    <span class="tok-type">Mat3</span> r = <span class="tok-fn">matMul3</span>(rUser, rBase);
+    <span class="tok-type">Vec3</span> pc = <span class="tok-fn">matVec3</span>(r, <span class="tok-fn">sub3</span>(params.pw, params.t)); <span class="tok-comment">// ${projComment}</span>
+
+    <span class="tok-type">Vec3</span> pProj = <span class="tok-keyword">new</span> <span class="tok-type">Vec3</span>(${proj.join(', ')});
+    <span class="tok-type">Mat3</span> k = <span class="tok-keyword">new</span> <span class="tok-type">Mat3</span>(<span class="tok-keyword">new</span> <span class="tok-type">double</span>[][]{
+        {params.fx, params.skew, params.cx},
+        {<span class="tok-num">0.0</span>, params.fy, params.cy},
+        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>}
+    });
+    <span class="tok-type">Vec3</span> q = <span class="tok-fn">matVec3</span>(k, pProj);
+
+    <span class="tok-keyword">if</span> (pProj.z &lt;= <span class="tok-num">0.0</span>) {
+        <span class="tok-keyword">return</span> <span class="tok-keyword">null</span>;
+    }
+    <span class="tok-keyword">return</span> <span class="tok-keyword">new</span> <span class="tok-type">ProjectionResult</span>(q.x / q.z, q.y / q.z);
+}`,
+        };
+
+        Object.entries(panels).forEach(([name, html]) => {
+            const panel = document.querySelector(`[data-code-panel="${name}"] code`);
+            if (panel) panel.innerHTML = html;
+        });
+    }
+
     // ============================================================
     //  LEFT PANEL: 3D scene (Three.js)
     // ============================================================
@@ -919,10 +1083,7 @@
         const uvInfoEl = document.getElementById('uv-info');
         if (uvInfoEl) {
             const uvLabel = preset.vDown ? '(0,0) top-left · V↓' : '(0,0) bottom-left · V↑';
-            const uvRefLink = preset.uvRef
-                ? ` · <a href="${preset.uvRef}" target="_blank" rel="noopener noreferrer">${preset.uvRefLabel}</a>`
-                : '';
-            uvInfoEl.innerHTML = `UV: ${uvLabel}${uvRefLink}`;
+            uvInfoEl.textContent = `UV: ${uvLabel}`;
         }
 
         // Sync the select element in case applyPresetToScene is called programmatically
@@ -1257,6 +1418,7 @@
 
         // Update formulas
         updateFormulas(data);
+        updateReferenceCode();
 
         // Update 3D scene
         update3DScene(params, data);
