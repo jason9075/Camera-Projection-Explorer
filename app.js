@@ -43,7 +43,7 @@
             handedness: 'right',
             worldUp: [0, 0, 1],
             camConvention: '+X right, +Y up, −Z forward',
-            resetRot: [0, 0, 0],
+            resetRot: [0, 90, 0],
             camUp: [0, 1, 0],
             camForward: [0, 0, -1],
             RBase: [[1,0,0],[0,1,0],[0,0,1]],
