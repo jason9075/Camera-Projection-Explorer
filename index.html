@@ -17,8 +17,29 @@
         <div class="header-content">
             <h1>Camera Projection Explorer</h1>
             <p class="subtitle">Geometric Models & Coordinate System Transformations</p>
-            <p class="subtitle">Right-handed world frame, Z-up. Camera axes follow Isaac Sim USD convention: +X right, +Y up, −Z forward. Image: origin top-left, u→right, v→down (OpenCV / Isaac Sim).</p>
-            <p class="subtitle">Reference: <a href="https://docs.isaacsim.omniverse.nvidia.com/4.2.0/reference_conventions.html" target="_blank" rel="noopener noreferrer">Isaac Sim Conventions</a></p>
+            <div class="preset-selector">
+                <label for="preset-select">Coordinate System:</label>
+                <select id="preset-select">
+                    <optgroup label="Right-hand · Z-up">
+                        <option value="isaac-sim" selected>Isaac Sim / USD</option>
+                        <option value="blender">Blender</option>
+                    </optgroup>
+                    <optgroup label="Right-hand · Y-up">
+                        <option value="opengl">OpenGL</option>
+                        <option value="godot">Godot</option>
+                        <option value="vulkan">Vulkan</option>
+                    </optgroup>
+                    <optgroup label="Left-hand · Y-up">
+                        <option value="unity">Unity</option>
+                        <option value="directx">DirectX</option>
+                    </optgroup>
+                    <optgroup label="Left-hand · Z-up">
+                        <option value="unreal">Unreal Engine</option>
+                    </optgroup>
+                </select>
+            </div>
+            <p class="subtitle" id="subtitle-convention">Right-hand · Z-up · Camera: +X right, +Y up, −Z forward (USD/Isaac Sim). Looks toward world −X at zero rotation.</p>
+            <p class="subtitle" id="subtitle-ref">Reference: <a href="https://docs.isaacsim.omniverse.nvidia.com/5.0.0/reference_material/reference_conventions.html" target="_blank" rel="noopener noreferrer">Isaac Sim Conventions</a></p>
             <button id="reset-btn" title="Reset all parameters to defaults">↺ Reset</button>
         </div>
     </header>
@@ -31,18 +52,18 @@
                 <h3>🌍 World Point <span class="coord-label">(X<sub>w</sub>, Y<sub>w</sub>, Z<sub>w</sub>)</span></h3>
                 <div class="slider-row">
                     <label for="pw-x">X<sub>w</sub></label>
-                    <input type="range" id="pw-x" min="-5" max="5" step="0.1" value="1.0">
-                    <span class="slider-value" id="pw-x-val">1.0</span>
+                    <input type="range" id="pw-x" min="-5" max="5" step="0.1" value="2.4">
+                    <span class="slider-value" id="pw-x-val">2.4</span>
                 </div>
                 <div class="slider-row">
                     <label for="pw-y">Y<sub>w</sub></label>
-                    <input type="range" id="pw-y" min="-5" max="5" step="0.1" value="2.0">
-                    <span class="slider-value" id="pw-y-val">2.0</span>
+                    <input type="range" id="pw-y" min="-5" max="5" step="0.1" value="3.9">
+                    <span class="slider-value" id="pw-y-val">3.9</span>
                 </div>
                 <div class="slider-row">
                     <label for="pw-z">Z<sub>w</sub></label>
-                    <input type="range" id="pw-z" min="-5" max="5" step="0.1" value="1.0">
-                    <span class="slider-value" id="pw-z-val">1.0</span>
+                    <input type="range" id="pw-z" min="-5" max="5" step="0.1" value="1.5">
+                    <span class="slider-value" id="pw-z-val">1.5</span>
                 </div>
                 <div class="slider-row">
                     <label for="pw-size">Size</label>
@@ -155,6 +176,7 @@
             <div class="panel-header">
                 <h2>Camera → Image (Viewport) Transform</h2>
                 <p class="panel-desc">Perspective projection using intrinsic parameters K</p>
+                <p id="uv-info" class="panel-desc" style="font-size:0.8em; opacity:0.8;"></p>
             </div>
             <div class="canvas-container">
                 <canvas id="canvas-2d"></canvas>
@@ -169,7 +191,7 @@
                     <div class="formula" id="formula-intrinsic"></div>
                 </div>
                 <div class="math-block">
-                    <h4>Projected q = K · [X<sub>c</sub>, -Y<sub>c</sub>, -Z<sub>c</sub>]<sup>T</sup></h4>
+                    <h4 id="proj-q-heading">Projected q = K · [X<sub>c</sub>, −Y<sub>c</sub>, −Z<sub>c</sub>]<sup>T</sup></h4>
                     <div class="formula" id="formula-proj"></div>
                 </div>
                 <div class="math-block">

@@ -28,6 +28,12 @@ just dev
 
 Then open [http://localhost:8080](http://localhost:8080) in your browser.
 
+If port `8080` is already in use, choose another port:
+
+```bash
+just dev 8081
+```
+
 ### Without Nix
 
 ```bash
@@ -40,6 +46,8 @@ python3 -m http.server 8080
 |-------------|--------------------------------------------------|
 | `just serve` | Start a simple HTTP server on port 8080          |
 | `just dev`   | Start server with auto-restart on file changes   |
+
+Both commands also accept a custom port, for example `just serve 8081` or `just dev 8081`.
 
 ## Tech Stack
 

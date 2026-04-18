@@ -4,6 +4,248 @@
 
 (function () {
     'use strict';
+
+    // ---- Coordinate System Presets ----
+    // Each preset defines the world up axis, default camera orientation (RBase),
+    // projection image-vector mapping (pImg), and frustum back-projection for a popular tool/API.
+    const COORDINATE_PRESETS = {
+        'isaac-sim': {
+            label: 'Isaac Sim / USD',
+            handedness: 'right',
+            worldUp: [0, 0, 1],
+            camConvention: '+X right, +Y up, −Z forward',
+            resetRot: [0, 90, 0],
+            camUp: [0, 1, 0],
+            camForward: [0, 0, -1],
+            RBase: [[1,0,0],[0,1,0],[0,0,1]],
+            pImg: (pc) => [pc[0], -pc[1], -pc[2]],
+            behind: (pImg) => pImg[2] <= 0,
+            projVec: '[X<sub>c</sub>, −Y<sub>c</sub>, −Z<sub>c</sub>]<sup>T</sup>',
+            projExpl: [
+                '<b>X<sub>c</sub></b>: camera +X = right → u increases rightward ✓',
+                '<b>−Y<sub>c</sub></b>: camera +Y = up, image v↓ so negate to flip direction ✓',
+                '<b>−Z<sub>c</sub></b>: camera −Z = forward; dividing by −Z<sub>c</sub> gives positive depth ✓',
+            ],
+            frustumImgToCamera: (u, v, d, p) => {
+                const yIZ = (v - p.cy) / p.fy;
+                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                return [xIZ * d, -yIZ * d, -d];
+            },
+            subtitle: 'Right-hand · Z-up · Camera: +X right, +Y up, −Z forward (USD/Isaac Sim). Zero rotation looks toward world −Z.',
+            refUrl: 'https://docs.isaacsim.omniverse.nvidia.com/5.0.0/reference_material/reference_conventions.html',
+            refLabel: 'Isaac Sim Conventions',
+            vDown: true,
+            uvRef: 'https://docs.isaacsim.omniverse.nvidia.com/5.0.0/reference_material/reference_conventions.html',
+            uvRefLabel: 'Isaac Sim Conventions',
+        },
+        'blender': {
+            label: 'Blender',
+            handedness: 'right',
+            worldUp: [0, 0, 1],
+            camConvention: '+X right, +Y up, −Z forward',
+            resetRot: [0, 0, 0],
+            camUp: [0, 1, 0],
+            camForward: [0, 0, -1],
+            RBase: [[1,0,0],[0,1,0],[0,0,1]],
+            pImg: (pc) => [pc[0], -pc[1], -pc[2]],
+            behind: (pImg) => pImg[2] <= 0,
+            projVec: '[X<sub>c</sub>, −Y<sub>c</sub>, −Z<sub>c</sub>]<sup>T</sup>',
+            projExpl: [
+                '<b>X<sub>c</sub></b>: camera +X = right → u increases rightward ✓',
+                '<b>−Y<sub>c</sub></b>: camera +Y = up, rendered image v↓ so negate to flip direction ✓',
+                '<b>−Z<sub>c</sub></b>: camera −Z = forward; dividing by −Z<sub>c</sub> gives positive depth ✓',
+            ],
+            frustumImgToCamera: (u, v, d, p) => {
+                const yIZ = (v - p.cy) / p.fy;
+                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                return [xIZ * d, -yIZ * d, -d];
+            },
+            subtitle: 'Right-hand · Z-up · Camera: +X right, +Y up, −Z forward. Zero rotation looks toward world −Z.',
+            refUrl: 'https://docs.blender.org/manual/en/2.79/editors/3dview/navigate/align.html',
+            refLabel: 'Blender Manual – Viewpoint',
+            vDown: true,
+            uvRef: 'https://blenderartists.org/t/uv-map-origin/1484053',
+            uvRefLabel: 'Blender Artists – UV map origin',
+        },
+        'opengl': {
+            label: 'OpenGL',
+            handedness: 'right',
+            worldUp: [0, 1, 0],
+            camConvention: '+X right, +Y up, −Z forward',
+            resetRot: [0, 0, 0],
+            camUp: [0, 1, 0],
+            camForward: [0, 0, -1],
+            RBase: [[1,0,0],[0,1,0],[0,0,1]],
+            pImg: (pc) => [pc[0], pc[1], -pc[2]],
+            behind: (pImg) => pImg[2] <= 0,
+            projVec: '[X<sub>c</sub>, Y<sub>c</sub>, −Z<sub>c</sub>]<sup>T</sup>',
+            projExpl: [
+                '<b>X<sub>c</sub></b>: camera +X = right → u increases rightward ✓',
+                '<b>Y<sub>c</sub></b>: camera +Y = up, image v↑ (bottom-left origin) → keep sign, larger Y gives larger v ✓',
+                '<b>−Z<sub>c</sub></b>: camera −Z = forward; dividing by −Z<sub>c</sub> gives positive depth ✓',
+            ],
+            frustumImgToCamera: (u, v, d, p) => {
+                const yIZ = (v - p.cy) / p.fy;
+                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                return [xIZ * d, yIZ * d, -d];
+            },
+            subtitle: 'Right-hand · Y-up · Camera: +X right, +Y up, −Z forward. Looks toward world −Z at zero rotation.',
+            refUrl: 'https://learnopengl.com/Getting-started/Coordinate-Systems',
+            refLabel: 'LearnOpenGL – Coordinate Systems',
+            vDown: false,
+            uvRef: 'https://www.khronos.org/opengl/wiki/Texture',
+            uvRefLabel: 'OpenGL Wiki – Texture',
+        },
+        'vulkan': {
+            label: 'Vulkan',
+            handedness: 'right',
+            worldUp: [0, 1, 0],
+            camConvention: '+X right, +Y up, −Z forward (NDC Y↓)',
+            resetRot: [0, 0, 0],
+            camUp: [0, 1, 0],
+            camForward: [0, 0, -1],
+            RBase: [[1,0,0],[0,1,0],[0,0,1]],
+            pImg: (pc) => [pc[0], -pc[1], -pc[2]],
+            behind: (pImg) => pImg[2] <= 0,
+            projVec: '[X<sub>c</sub>, −Y<sub>c</sub>, −Z<sub>c</sub>]<sup>T</sup>',
+            projExpl: [
+                '<b>X<sub>c</sub></b>: camera +X = right → u increases rightward ✓',
+                '<b>−Y<sub>c</sub></b>: same view-space axes as OpenGL; Vulkan NDC Y↓ differs only at the framebuffer stage ✓',
+                '<b>−Z<sub>c</sub></b>: camera −Z = forward; dividing by −Z<sub>c</sub> gives positive depth ✓',
+            ],
+            frustumImgToCamera: (u, v, d, p) => {
+                const yIZ = (v - p.cy) / p.fy;
+                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                return [xIZ * d, -yIZ * d, -d];
+            },
+            subtitle: 'Right-hand · Y-up · Same 3D convention as OpenGL. Vulkan NDC Y↓ is a framebuffer-level flip, not a 3D scene change.',
+            refUrl: 'https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/',
+            refLabel: 'The new Vulkan Coordinate System',
+            vDown: true,
+            uvRef: 'https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/',
+            uvRefLabel: 'The new Vulkan Coordinate System',
+        },
+        'godot': {
+            label: 'Godot',
+            handedness: 'right',
+            worldUp: [0, 1, 0],
+            camConvention: '+X right, +Y up, −Z forward',
+            resetRot: [0, 0, 0],
+            camUp: [0, 1, 0],
+            camForward: [0, 0, -1],
+            RBase: [[1,0,0],[0,1,0],[0,0,1]],
+            pImg: (pc) => [pc[0], -pc[1], -pc[2]],
+            behind: (pImg) => pImg[2] <= 0,
+            projVec: '[X<sub>c</sub>, −Y<sub>c</sub>, −Z<sub>c</sub>]<sup>T</sup>',
+            projExpl: [
+                '<b>X<sub>c</sub></b>: camera +X = right → u increases rightward ✓',
+                '<b>−Y<sub>c</sub></b>: camera +Y = up, image v↓ so negate to flip direction ✓',
+                '<b>−Z<sub>c</sub></b>: camera −Z = forward; dividing by −Z<sub>c</sub> gives positive depth ✓',
+            ],
+            frustumImgToCamera: (u, v, d, p) => {
+                const yIZ = (v - p.cy) / p.fy;
+                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                return [xIZ * d, -yIZ * d, -d];
+            },
+            subtitle: 'Right-hand · Y-up · Camera: +X right, +Y up, −Z forward. Looks toward world −Z at zero rotation.',
+            refUrl: 'https://learnopengl.com/Getting-started/Coordinate-Systems',
+            refLabel: 'LearnOpenGL – Coordinate Systems',
+            vDown: true,
+            uvRef: 'https://docs.godotengine.org/en/stable/tutorials/shaders/shader_reference/shading_language.html',
+            uvRefLabel: 'Godot UV Basics',
+        },
+        'unity': {
+            label: 'Unity',
+            handedness: 'left',
+            worldUp: [0, 1, 0],
+            camConvention: '+X right, +Y up, +Z forward',
+            resetRot: [0, 0, 0],
+            camUp: [0, 1, 0],
+            camForward: [0, 0, 1],
+            RBase: [[1,0,0],[0,1,0],[0,0,1]],
+            pImg: (pc) => [pc[0], pc[1], pc[2]],
+            behind: (pImg) => pImg[2] <= 0,
+            projVec: '[X<sub>c</sub>, Y<sub>c</sub>, Z<sub>c</sub>]<sup>T</sup>',
+            projExpl: [
+                '<b>X<sub>c</sub></b>: camera +X = right → u increases rightward ✓',
+                '<b>Y<sub>c</sub></b>: camera +Y = up, image v↑ (bottom-left origin) → keep sign, larger Y gives larger v ✓',
+                '<b>Z<sub>c</sub></b>: camera +Z = forward; depth = Z<sub>c</sub> > 0 for front-facing points ✓',
+            ],
+            frustumImgToCamera: (u, v, d, p) => {
+                const yIZ = (v - p.cy) / p.fy;
+                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                return [xIZ * d, yIZ * d, d];
+            },
+            subtitle: 'Left-hand · Y-up · Camera: +X right, +Y up, +Z forward. Looks toward world +Z at zero rotation.',
+            refUrl: 'https://techarthub.com/a-guide-to-unitys-coordinate-system-with-practical-examples/',
+            refLabel: 'Unity Coordinate System – techarthub',
+            vDown: false,
+            uvRef: 'https://docs.unity3d.com/ScriptReference/Mesh-uv.html',
+            uvRefLabel: 'Unity Docs – Mesh.uv',
+        },
+        'unreal': {
+            label: 'Unreal Engine',
+            handedness: 'left',
+            worldUp: [0, 0, 1],
+            camConvention: '+X forward, +Y right, +Z up',
+            resetRot: [0, 0, 0],
+            camUp: [0, 0, 1],
+            camForward: [1, 0, 0],
+            RBase: [[1,0,0],[0,1,0],[0,0,1]],
+            pImg: (pc) => [pc[1], -pc[2], pc[0]],
+            behind: (pImg) => pImg[2] <= 0,
+            projVec: '[Y<sub>c</sub>, −Z<sub>c</sub>, X<sub>c</sub>]<sup>T</sup>',
+            projExpl: [
+                '<b>Y<sub>c</sub></b>: camera +Y = right → u increases rightward ✓',
+                '<b>−Z<sub>c</sub></b>: camera +Z = up, image v↓ so negate to flip direction ✓',
+                '<b>X<sub>c</sub></b>: camera +X = forward; depth = X<sub>c</sub> > 0 for front-facing points ✓',
+            ],
+            frustumImgToCamera: (u, v, d, p) => {
+                const yIZ = (v - p.cy) / p.fy;
+                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                return [d, xIZ * d, -yIZ * d];
+            },
+            subtitle: 'Left-hand · Z-up · Camera: +X forward, +Y right, +Z up. Looks toward world +X at zero rotation.',
+            refUrl: 'https://techarthub.com/a-practical-guide-to-unreal-engines-coordinate-system/',
+            refLabel: 'Unreal Coordinate System – techarthub',
+            vDown: true,
+            uvRef: 'https://www.clockworkberry.com/uv-coordinate-systems/',
+            uvRefLabel: 'UV Coordinate Systems – A Clockwork Berry',
+        },
+        'directx': {
+            label: 'DirectX',
+            handedness: 'left',
+            worldUp: [0, 1, 0],
+            camConvention: '+X right, +Y up, +Z forward',
+            resetRot: [0, 0, 0],
+            camUp: [0, 1, 0],
+            camForward: [0, 0, 1],
+            RBase: [[1,0,0],[0,1,0],[0,0,1]],
+            pImg: (pc) => [pc[0], -pc[1], pc[2]],
+            behind: (pImg) => pImg[2] <= 0,
+            projVec: '[X<sub>c</sub>, −Y<sub>c</sub>, Z<sub>c</sub>]<sup>T</sup>',
+            projExpl: [
+                '<b>X<sub>c</sub></b>: camera +X = right → u increases rightward ✓',
+                '<b>−Y<sub>c</sub></b>: camera +Y = up, image v↓ so negate to flip direction ✓',
+                '<b>Z<sub>c</sub></b>: camera +Z = forward; depth = Z<sub>c</sub> > 0 for front-facing points ✓',
+            ],
+            frustumImgToCamera: (u, v, d, p) => {
+                const yIZ = (v - p.cy) / p.fy;
+                const xIZ = (u - p.cx - p.skew * yIZ) / p.fx;
+                return [xIZ * d, -yIZ * d, d];
+            },
+            subtitle: 'Left-hand · Y-up · Camera: +X right, +Y up, +Z forward. Looks toward world +Z at zero rotation.',
+            refUrl: 'https://learn.microsoft.com/en-us/windows/win32/direct3d9/coordinate-systems',
+            refLabel: 'Coordinate Systems (Direct3D 9) – Microsoft',
+            vDown: true,
+            uvRef: 'https://learn.microsoft.com/en-us/windows/win32/direct3d9/texture-coordinates',
+            uvRefLabel: 'Texture Coordinates – D3D vs OpenGL',
+        },
+    };
+
+    let activePresetId = 'isaac-sim';
+    function activePreset() { return COORDINATE_PRESETS[activePresetId]; }
+
     THREE.Object3D.DefaultUp.set(0, 0, 1);
 
     // ---- DOM references ----
@@ -51,21 +293,15 @@
         updateAll();
     });
 
+    function applyPresetResetDefaults(preset) {
+        const rotDefaults = preset.resetRot || [0, 0, 0];
+        sliders.rotX.defaultValue = String(rotDefaults[0]);
+        sliders.rotY.defaultValue = String(rotDefaults[1]);
+        sliders.rotZ.defaultValue = String(rotDefaults[2]);
+    }
+
     // ---- Math utilities ----
     function degToRad(d) { return d * Math.PI / 180; }
-
-    function rotationMatrix(rxDeg, ryDeg, rzDeg) {
-        const a = degToRad(rxDeg), b = degToRad(ryDeg), c = degToRad(rzDeg);
-        const ca = Math.cos(a), sa = Math.sin(a);
-        const cb = Math.cos(b), sb = Math.sin(b);
-        const cc = Math.cos(c), sc = Math.sin(c);
-        // ZYX Euler convention
-        return [
-            [cc*cb,  cc*sb*sa - sc*ca,  cc*sb*ca + sc*sa],
-            [sc*cb,  sc*sb*sa + cc*ca,  sc*sb*ca - cc*sa],
-            [-sb,    cb*sa,             cb*ca            ],
-        ];
-    }
 
     function matVec3(M, v) {
         return [
@@ -95,6 +331,49 @@
         ];
     }
 
+    function vecCross(a, b) {
+        return [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ];
+    }
+
+    function vecNorm(v) {
+        const len = Math.hypot(v[0], v[1], v[2]) || 1;
+        return [v[0] / len, v[1] / len, v[2] / len];
+    }
+
+    function axisAngleMatrix(axis, angleRad) {
+        const [x, y, z] = vecNorm(axis);
+        const c = Math.cos(angleRad);
+        const s = Math.sin(angleRad);
+        const t = 1 - c;
+        return [
+            [t*x*x + c,     t*x*y - s*z,   t*x*z + s*y],
+            [t*x*y + s*z,   t*y*y + c,     t*y*z - s*x],
+            [t*x*z - s*y,   t*y*z + s*x,   t*z*z + c  ],
+        ];
+    }
+
+    function rotationMatrix(preset, rollDeg, pitchDeg, yawDeg) {
+        const forward = vecNorm(preset.camForward);
+        const up = vecNorm(preset.camUp);
+        const right = vecNorm(
+            preset.handedness === 'right'
+                ? vecCross(forward, up)
+                : vecCross(up, forward)
+        );
+        // Sliders describe the camera pose. The extrinsic world->camera rotation is its inverse,
+        // so apply the negated local RPY angles here.
+        const roll = axisAngleMatrix(forward, degToRad(-rollDeg));
+        const pitch = axisAngleMatrix(right, degToRad(-pitchDeg));
+        const yaw = axisAngleMatrix(up, degToRad(-yawDeg));
+
+        // Intrinsic RPY: roll about local forward, then pitch about local side, then yaw about local up.
+        return matMul3(yaw, matMul3(pitch, roll));
+    }
+
 
     function fmt(n, d=2) {
         return Number(n).toFixed(d);
@@ -117,36 +396,23 @@
 
     // ---- Compute transforms ----
     function computeTransforms(params) {
-        // Isaac Sim / USD camera axes:
-        // Xc = right, Yc = up, -Zc = forward.
-        // With user rotation = 0, the camera looks along world +X.
-        const RUser = rotationMatrix(params.rot[0], params.rot[1], params.rot[2]);
-        // Default orientation when roll=pitch=yaw=0 (USD/Isaac Sim CG convention):
-        //   Camera looks along world -X, head up (+Z).
-        //   Camera +X (right)  = world +Y
-        //   Camera +Y (up)     = world +Z
-        //   Camera -Z (forward)= world -X
-        const RBase = [
-            [ 0,  1,  0],
-            [ 0,  0,  1],
-            [ 1,  0,  0],
-        ];
-        const R = matMul3(RUser, RBase);
+        const preset = activePreset();
+        const RUser = rotationMatrix(preset, params.rot[0], params.rot[1], params.rot[2]);
+        const R = matMul3(RUser, preset.RBase);
         const pw = params.pw;
         const t = params.t;
 
         const pc = matVec3(R, [pw[0]-t[0], pw[1]-t[1], pw[2]-t[2]]);
 
-        // Standard pinhole K applied to the image-facing camera vector:
-        //   Ximg = Xc (right), Yimg = -Yc (down), Zimg = -Zc (forward depth).
-        const pImg = [pc[0], -pc[1], -pc[2]];
+        // Map camera-space point to image-facing vector per preset convention.
+        const pImg = preset.pImg(pc);
         const K = [
             [params.fx, params.skew, params.cx],
             [0,         params.fy,   params.cy],
             [0,         0,           1        ],
         ];
         const q = matVec3(K, pImg);
-        const behindCamera = pImg[2] <= 0;
+        const behindCamera = preset.behind(pImg);
         const u = behindCamera ? NaN : q[0] / q[2];
         const v = behindCamera ? NaN : q[1] / q[2];
 
@@ -171,6 +437,7 @@
     // ---- Update formula displays ----
     function updateFormulas(data) {
         const { R, pw, t, pc, K, q, u, v, behindCamera } = data;
+        const preset = activePreset();
         const warnBadge = behindCamera ? '<span class="warning-badge">Behind Camera</span>' : '';
 
         // World point (homogeneous)
@@ -192,6 +459,7 @@
             ], '') +
             `<div style="margin-top:0.5rem;color:var(--text-dim);font-size:0.82rem">` +
             `⚠️ <strong>World → Camera</strong> convention: P<sub>c</sub> = R · (P<sub>w</sub> − t), where <strong>t</strong> is the camera origin in the world frame.<br>` +
+            `Camera frame (${preset.label}): <strong>${preset.camConvention}</strong><br>` +
             `(Camera → World would instead be: P<sub>w</sub> = R<sup>T</sup> · P<sub>c</sub> + t)</div>`;
 
         // Camera point
@@ -209,28 +477,32 @@
                         [`<span class="val-camera">${fmt(pc[1])}</span>`],
                         [`<span class="val-camera">${fmt(pc[2])}</span>`]], '') + warnBadge;
 
-        // Intrinsic K (standard form) and the image-facing camera vector.
+        // Intrinsic K (standard form)
         document.getElementById('formula-intrinsic').innerHTML =
             `K = ` +
             matrixHTML([
                 [`<span class="val-intrinsic">${fmt(K[0][0],0)}</span>`, `<span class="val-intrinsic">${fmt(K[0][1],0)}</span>`, `<span class="val-intrinsic">${fmt(K[0][2],0)}</span>`],
                 [`0`, `<span class="val-intrinsic">${fmt(K[1][1],0)}</span>`, `<span class="val-intrinsic">${fmt(K[1][2],0)}</span>`],
                 [`0`, `0`, `1`],
-            ], '') +
-            `<div style="margin-top:0.7rem;color:var(--text-dim);line-height:1.6">` +
-            `Projection vector = [X<sub>c</sub>, −Y<sub>c</sub>, −Z<sub>c</sub>]<sup>T</sup> &nbsp;` +
-            `<span style="color:var(--text-secondary)">(why each term)</span><br>` +
-            `&nbsp;• <b>X<sub>c</sub></b>: camera +X = right → image u increases rightward ✓<br>` +
-            `&nbsp;• <b>−Y<sub>c</sub></b>: camera +Y = up, but image v increases <em>downward</em>, so negate Y<sub>c</sub> to flip direction ✓<br>` +
-            `&nbsp;• <b>−Z<sub>c</sub></b>: camera −Z = forward (depth); dividing by −Z<sub>c</sub> gives positive depth for points in front of camera ✓` +
-            `</div>`;
+            ], '');
 
-        // Projected q
+        // Keep the math-block heading in sync with the active preset
+        const projQHeading = document.getElementById('proj-q-heading');
+        if (projQHeading) {
+            projQHeading.innerHTML = `Projected q = K · ${preset.projVec}`;
+        }
+
+        // Projected q + projection vector explanation
         document.getElementById('formula-proj').innerHTML =
             `q = ` +
             matrixHTML([[`<span class="val-image">${fmt(q[0])}</span>`],
                         [`<span class="val-image">${fmt(q[1])}</span>`],
-                        [`<span class="val-image">${fmt(q[2])}</span>`]], '') + warnBadge;
+                        [`<span class="val-image">${fmt(q[2])}</span>`]], '') + warnBadge +
+            `<div style="margin-top:0.7rem;color:var(--text-dim);line-height:1.6">` +
+            `Projection vector = ${preset.projVec} &nbsp;` +
+            `<span style="color:var(--text-secondary)">(why each term)</span><br>` +
+            preset.projExpl.map(e => `&nbsp;• ${e}`).join('<br>') +
+            `</div>`;
 
         // Final pixel
         const uStr = behindCamera ? '<span class="val-image">N/A</span>' : `<span class="val-image">${fmt(u, 1)}</span>`;
@@ -244,11 +516,11 @@
             `<span class="operator">=</span>` +
             `<span class="val-intrinsic">K</span>` +
             `<span class="operator">·</span>` +
-            `<span class="val-camera">[X<sub>c</sub>, -Y<sub>c</sub>, -Z<sub>c</sub>]<sup>T</sup></span>` +
+            `<span class="val-camera">${preset.projVec}</span>` +
             `<br>` +
-            `<span style="color:var(--text-dim)">where P<sub>c</sub> = R · (P<sub>w</sub> − t) in Isaac Sim default camera axes</span>` +
+            `<span style="color:var(--text-dim)">where P<sub>c</sub> = R · (P<sub>w</sub> − t) in <strong>${preset.label}</strong> camera frame (${preset.camConvention})</span>` +
             `<br>` +
-            `<span style="color:var(--text-dim)">Pixel: (u, v) = (q<sub>1</sub>/q<sub>3</sub> , q<sub>2</sub>/q<sub>3</sub>) where q<sub>3</sub> = -Z<sub>c</sub> (forward depth), t = camera position in world</span>` +
+            `<span style="color:var(--text-dim)">Pixel: (u, v) = (q<sub>1</sub>/q<sub>3</sub>, q<sub>2</sub>/q<sub>3</sub>) where q<sub>3</sub> is the depth component, t = camera position in world</span>` +
             `<br>` +
             `<span style="color:var(--text-dim)">(u, v) = (${uStr}, ${vStr})</span>`;
     }
@@ -330,11 +602,29 @@
     const cameraGroup = new THREE.Group();
     scene.add(cameraGroup);
 
-    // Camera body in Isaac Sim default camera axes: +X right, +Y up, -Z forward.
+    // Camera body/lens visual mesh in canonical camera axes: +X right, +Y up, -Z forward.
+    // This subgroup is re-oriented per preset so the lens sits on the correct face.
+    const cameraVisualGroup = new THREE.Group();
+    cameraGroup.add(cameraVisualGroup);
+
     const camBodyGeom = new THREE.BoxGeometry(0.35, 0.5, 0.6);
     const camBodyMat = new THREE.MeshStandardMaterial({ color: 0x5b8cff, emissive: 0x3366cc, emissiveIntensity: 0.3, transparent: true, opacity: 0.85 });
     const camBody = new THREE.Mesh(camBodyGeom, camBodyMat);
-    cameraGroup.add(camBody);
+    cameraVisualGroup.add(camBody);
+
+    // Up marker button — a red cube sitting above the camera body.
+    const upButtonGeom = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    const upButtonMat = new THREE.MeshStandardMaterial({ color: 0xff4d4d, emissive: 0xaa2222, emissiveIntensity: 0.35 });
+    const upButton = new THREE.Mesh(upButtonGeom, upButtonMat);
+    upButton.position.set(0, 0.34, 0);
+    cameraVisualGroup.add(upButton);
+
+    // Side screen block — placed on the camera's +X side to indicate camera-right.
+    const screenGeom = new THREE.BoxGeometry(0.12, 0.22, 0.3);
+    const screenMat = new THREE.MeshStandardMaterial({ color: 0x1b2744, emissive: 0x0e1933, emissiveIntensity: 0.25 });
+    const sideScreen = new THREE.Mesh(screenGeom, screenMat);
+    sideScreen.position.set(0.27, 0, 0);
+    cameraVisualGroup.add(sideScreen);
 
     // Camera lens — points along local -Z (forward)
     const lensGeom = new THREE.CylinderGeometry(0.12, 0.15, 0.25, 16);
@@ -342,7 +632,7 @@
     const lens = new THREE.Mesh(lensGeom, lensMat);
     lens.rotation.x = Math.PI / 2;   // CylinderGeometry axis is Y; rotate to align with Z
     lens.position.z = -0.42;
-    cameraGroup.add(lens);
+    cameraVisualGroup.add(lens);
 
     // Camera axes
     const camAxes = new THREE.Group();
@@ -373,14 +663,28 @@
     const frustumLines = new THREE.LineSegments(frustumGeom, frustumMat);
     cameraGroup.add(frustumLines);
 
+    function updateCameraVisualOrientation(preset) {
+        const up = vecNorm(preset.camUp);
+        const back = vecNorm([-preset.camForward[0], -preset.camForward[1], -preset.camForward[2]]);
+        const right = vecNorm(vecCross(up, back));
+        const basis = new THREE.Matrix4();
+        basis.makeBasis(
+            new THREE.Vector3(right[0], right[1], right[2]),
+            new THREE.Vector3(up[0], up[1], up[2]),
+            new THREE.Vector3(back[0], back[1], back[2])
+        );
+        cameraVisualGroup.matrix.copy(basis);
+        cameraVisualGroup.matrixAutoUpdate = false;
+        cameraVisualGroup.matrixWorldNeedsUpdate = true;
+    }
+
     function updateFrustumFromIntrinsics(params, near, far) {
+        const preset = activePreset();
         const imgW = Math.max(params.cx * 2, 1);
         const imgH = Math.max(params.cy * 2, 1);
 
         function imagePointToCamera(u, v, depth) {
-            const yImgOverZ = (v - params.cy) / params.fy;
-            const xImgOverZ = (u - params.cx - params.skew * yImgOverZ) / params.fx;
-            return [xImgOverZ * depth, -yImgOverZ * depth, -depth];
+            return preset.frustumImgToCamera(u, v, depth, params);
         }
 
         const nearCorners = [
@@ -485,12 +789,22 @@
     let isDragging = false;
     let lastMouse = { x: 0, y: 0 };
 
+    function orbitThetaDragDir() {
+        const preset = activePreset();
+        if (preset.worldUp[1] > 0.5) {
+            // Y-up presets share the same apparent horizontal orbit direction.
+            return 1;
+        }
+        // Z-up keeps the original interaction direction for both handednesses.
+        return -1;
+    }
+
     canvas3d.addEventListener('mousedown', (e) => { isDragging = true; lastMouse = { x: e.clientX, y: e.clientY }; });
     canvas3d.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
         const dx = e.clientX - lastMouse.x;
         const dy = e.clientY - lastMouse.y;
-        orbitTheta -= dx * 0.005;
+        orbitTheta += orbitThetaDragDir() * dx * 0.005;
         orbitPhi = Math.max(0.1, Math.min(Math.PI - 0.1, orbitPhi - dy * 0.005));
         lastMouse = { x: e.clientX, y: e.clientY };
     });
@@ -513,19 +827,102 @@
         e.preventDefault();
         const dx = e.touches[0].clientX - lastMouse.x;
         const dy = e.touches[0].clientY - lastMouse.y;
-        orbitTheta -= dx * 0.005;
+        orbitTheta += orbitThetaDragDir() * dx * 0.005;
         orbitPhi = Math.max(0.1, Math.min(Math.PI - 0.1, orbitPhi - dy * 0.005));
         lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     }, { passive: false });
     canvas3d.addEventListener('touchend', () => { isDragging = false; });
 
     function updateOrbitCamera() {
-        cam3d.position.set(
-            orbitRadius * Math.sin(orbitPhi) * Math.cos(orbitTheta),
-            orbitRadius * Math.sin(orbitPhi) * Math.sin(orbitTheta),
-            orbitRadius * Math.cos(orbitPhi)
-        );
+        const r = orbitRadius;
+        const sinPhi = Math.sin(orbitPhi);
+        const cosPhi = Math.cos(orbitPhi);
+        const cosTheta = Math.cos(orbitTheta);
+        const sinTheta = Math.sin(orbitTheta);
+        // Orbit around the world-up axis so the polar direction matches the convention.
+        if (activePreset().worldUp[2] > 0.5) {
+            // Z-up: orbit in XY plane, Z is elevation
+            cam3d.position.set(r * sinPhi * cosTheta, r * sinPhi * sinTheta, r * cosPhi);
+        } else {
+            // Y-up: orbit in XZ plane, Y is elevation
+            cam3d.position.set(r * sinPhi * cosTheta, r * cosPhi, r * sinPhi * sinTheta);
+        }
         cam3d.lookAt(0, 0, 0);
+    }
+
+    // ---- Apply coordinate preset ----
+    function applyPresetToScene(id) {
+        activePresetId = id;
+        const preset = COORDINATE_PRESETS[id];
+
+        // Update Three.js world up axis.
+        // DefaultUp only affects newly created objects; cam3d.up must be updated directly
+        // because lookAt() reads this.up, not the static DefaultUp.
+        THREE.Object3D.DefaultUp.set(preset.worldUp[0], preset.worldUp[1], preset.worldUp[2]);
+        cam3d.up.set(preset.worldUp[0], preset.worldUp[1], preset.worldUp[2]);
+
+        // Three.js is inherently right-handed. For Y-up left-hand systems (Unity, DirectX),
+        // flip scene Z so the chirality appears inverted in the viewer. scene.scale does NOT
+        // affect camera math (lookAt, orbit). Z-up left-hand (Unreal) is NOT flipped because
+        // flipping Y in Z-up orbit causes orbit reversal that cannot be cleanly compensated.
+        if (preset.handedness === 'left' && preset.worldUp[1] > 0.5) {
+            scene.scale.set(1, 1, -1); // Y-up left-hand: flip Z
+        } else {
+            scene.scale.set(1, 1, 1);
+        }
+
+        // Rotate grid to match the world's ground plane:
+        //   Z-up world → ground is XY (rotate GridHelper by 90° around X)
+        //   Y-up world → ground is XZ (GridHelper default, no rotation)
+        gridHelper.rotation.x = preset.worldUp[2] > 0.5 ? Math.PI / 2 : 0;
+
+        // Reset orbit to a sensible isometric view for this world orientation
+        if (preset.worldUp[2] > 0.5) {
+            // Z-up: true isometric (elevation ~54.7° from zenith)
+            orbitTheta = Math.PI / 4;
+            orbitPhi = Math.acos(1 / Math.sqrt(3));
+        } else {
+            // Y-up: 45° elevation view
+            orbitTheta = Math.PI / 4;
+            orbitPhi = Math.PI / 4;
+        }
+        orbitRadius = 18;
+
+        // Immediately reposition the overview camera so the floor is horizontal
+        // on the very first frame after switching (don't wait for next animate tick).
+        updateOrbitCamera();
+
+        // Update header subtitle with active convention description
+        const subtitleEl = document.getElementById('subtitle-convention');
+        if (subtitleEl) subtitleEl.textContent = preset.subtitle;
+
+        // Update reference link (hide if no refUrl defined)
+        const refEl = document.getElementById('subtitle-ref');
+        if (refEl) {
+            if (preset.refUrl) {
+                refEl.innerHTML = `Reference: <a href="${preset.refUrl}" target="_blank" rel="noopener noreferrer">${preset.refLabel}</a>`;
+                refEl.style.display = '';
+            } else {
+                refEl.style.display = 'none';
+            }
+        }
+
+        // Update UV convention info
+        const uvInfoEl = document.getElementById('uv-info');
+        if (uvInfoEl) {
+            const uvLabel = preset.vDown ? '(0,0) top-left · V↓' : '(0,0) bottom-left · V↑';
+            const uvRefLink = preset.uvRef
+                ? ` · <a href="${preset.uvRef}" target="_blank" rel="noopener noreferrer">${preset.uvRefLabel}</a>`
+                : '';
+            uvInfoEl.innerHTML = `UV: ${uvLabel}${uvRefLink}`;
+        }
+
+        // Sync the select element in case applyPresetToScene is called programmatically
+        const selectEl = document.getElementById('preset-select');
+        if (selectEl && selectEl.value !== id) selectEl.value = id;
+
+        updateCameraVisualOrientation(preset);
+        applyPresetResetDefaults(preset);
     }
 
     // ============================================================
@@ -547,13 +944,19 @@
         // Image dimensions based on principal point (double it for a symmetric-ish viewport)
         const imgW = params.cx * 2;
         const imgH = params.cy * 2;
+        const vDown = activePreset().vDown !== false; // default true if not specified
         const skewSlope = params.skew / Math.max(params.fy, 1);
 
         // Origin at top-left (OpenCV / Isaac Sim image convention): u→right, v→down
         function rawPoint(uVal, vVal) {
+            // For bottom-left origin (V up), flip the canvas y to show (0,0) at bottom.
+            const yCanvas = vDown ? vVal : (imgH - vVal);
+            // Draw the skewed image plane by undoing the intrinsic shear:
+            // u = x + skew * ((v - cy) / fy)  =>  x = u - skew * ((v - cy) / fy).
+            // Use canvas-vertical direction so V↓ / V↑ presets tilt opposite ways on screen.
             return {
-                x: uVal + (vVal - params.cy) * skewSlope,
-                y: vVal,
+                x: uVal - (yCanvas - params.cy) * skewSlope,
+                y: yCanvas,
             };
         }
 
@@ -778,24 +1181,33 @@
             ctx2d.fillStyle = 'rgba(248, 113, 113, 0.8)';
             ctx2d.font = '14px "Inter", sans-serif';
             ctx2d.textAlign = 'center';
-            ctx2d.fillText('Point is behind the camera (−Zc ≤ 0, depth ≤ 0)', w / 2, h / 2);
+            ctx2d.fillText('Point is behind the camera (depth \u2264 0)', w / 2, h / 2);
             ctx2d.font = '11px "Inter", sans-serif';
             ctx2d.fillStyle = 'rgba(248, 113, 113, 0.5)';
             ctx2d.fillText('Move the world point or adjust camera translation', w / 2, h / 2 + 22);
             ctx2d.textAlign = 'start';
         }
 
-        // Axis labels — origin at top-left, u→right, v→down
+        // Axis labels — positioned at UV origin corner, direction depends on convention
         ctx2d.fillStyle = 'rgba(148, 163, 192, 0.6)';
         ctx2d.font = '10px "JetBrains Mono", monospace';
-        const uLabel = mapPoint(0, 0);
-        const vLabel = mapPoint(0, 0);
-        ctx2d.fillText('u →', uLabel.x + 4, uLabel.y - 10);
+        const uvOriginCanvas = mapPoint(0, 0); // always the UV (0,0) point in canvas coords
+        // u label: above origin for top-left (v↓), below origin for bottom-left (v↑)
+        ctx2d.fillText('u →', uvOriginCanvas.x + 4, vDown ? uvOriginCanvas.y - 10 : uvOriginCanvas.y + 14);
+        // v label: rotated CW (v↓) or CCW (v↑)
         ctx2d.save();
-        ctx2d.translate(vLabel.x - 8, vLabel.y + 4);
-        ctx2d.rotate(Math.PI / 2);   // v increases downward
+        ctx2d.translate(uvOriginCanvas.x - 8, uvOriginCanvas.y + (vDown ? 4 : -4));
+        ctx2d.rotate(vDown ? Math.PI / 2 : -Math.PI / 2);
         ctx2d.fillText('v →', 0, 0);
         ctx2d.restore();
+
+        // UV convention badge — small text at top of image plane area
+        const badgeText = vDown ? '(0,0) top-left · V↓' : '(0,0) bottom-left · V↑';
+        ctx2d.fillStyle = 'rgba(148, 163, 192, 0.4)';
+        ctx2d.font = '9px "JetBrains Mono", monospace';
+        ctx2d.textAlign = 'right';
+        ctx2d.fillText(badgeText, planeMaxX - 4, planeMinY + 12);
+        ctx2d.textAlign = 'start';
 
         // Image dimensions
         ctx2d.fillStyle = 'rgba(148, 163, 192, 0.4)';
@@ -876,6 +1288,7 @@
     }
 
     // ---- Initialize ----
+    applyPresetToScene('isaac-sim');
     handleResize();
     updateAll();
     animate();
@@ -896,6 +1309,15 @@
         el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
         observer.observe(el);
     });
+
+    // Preset selector
+    const presetSelect = document.getElementById('preset-select');
+    if (presetSelect) {
+        presetSelect.addEventListener('change', function () {
+            applyPresetToScene(this.value);
+            updateAll();
+        });
+    }
 
     // Language tabs for the reference code block
     const codeTabs = document.querySelectorAll('.code-tab');
