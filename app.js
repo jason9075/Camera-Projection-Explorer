@@ -121,16 +121,20 @@
         // Xc = right, Yc = up, -Zc = forward.
         // With user rotation = 0, the camera looks along world +X.
         const RUser = rotationMatrix(params.rot[0], params.rot[1], params.rot[2]);
+        // Default orientation when roll=pitch=yaw=0 (USD/Isaac Sim CG convention):
+        //   Camera looks along world -X, head up (+Z).
+        //   Camera +X (right)  = world +Y
+        //   Camera +Y (up)     = world +Z
+        //   Camera -Z (forward)= world -X
         const RBase = [
-            [0, -1,  0],
-            [0,  0,  1],
-            [-1, 0,  0],
+            [ 0,  1,  0],
+            [ 0,  0,  1],
+            [ 1,  0,  0],
         ];
         const R = matMul3(RUser, RBase);
         const pw = params.pw;
         const t = params.t;
 
-        // Camera point in Isaac Sim default camera axes.
         const pc = matVec3(R, [pw[0]-t[0], pw[1]-t[1], pw[2]-t[2]]);
 
         // Standard pinhole K applied to the image-facing camera vector:
@@ -185,7 +189,10 @@
                 [fmt(R[1][0]), fmt(R[1][1]), fmt(R[1][2]), `<span class="val-camera">${fmt(t[1])}</span>`],
                 [fmt(R[2][0]), fmt(R[2][1]), fmt(R[2][2]), `<span class="val-camera">${fmt(t[2])}</span>`],
                 ['0', '0', '0', '1'],
-            ], '');
+            ], '') +
+            `<div style="margin-top:0.5rem;color:var(--text-dim);font-size:0.82rem">` +
+            `⚠️ <strong>World → Camera</strong> convention: P<sub>c</sub> = R · (P<sub>w</sub> − t), where <strong>t</strong> is the camera origin in the world frame.<br>` +
+            `(Camera → World would instead be: P<sub>w</sub> = R<sup>T</sup> · P<sub>c</sub> + t)</div>`;
 
         // Camera point
         document.getElementById('formula-pc').innerHTML =
@@ -210,7 +217,13 @@
                 [`0`, `<span class="val-intrinsic">${fmt(K[1][1],0)}</span>`, `<span class="val-intrinsic">${fmt(K[1][2],0)}</span>`],
                 [`0`, `0`, `1`],
             ], '') +
-            `<div style="margin-top:0.7rem;color:var(--text-dim)">Projection uses [X<sub>c</sub>, -Y<sub>c</sub>, -Z<sub>c</sub>]<sup>T</sup> so image coordinates stay u-right, v-down.</div>`;
+            `<div style="margin-top:0.7rem;color:var(--text-dim);line-height:1.6">` +
+            `Projection vector = [X<sub>c</sub>, −Y<sub>c</sub>, −Z<sub>c</sub>]<sup>T</sup> &nbsp;` +
+            `<span style="color:var(--text-secondary)">(why each term)</span><br>` +
+            `&nbsp;• <b>X<sub>c</sub></b>: camera +X = right → image u increases rightward ✓<br>` +
+            `&nbsp;• <b>−Y<sub>c</sub></b>: camera +Y = up, but image v increases <em>downward</em>, so negate Y<sub>c</sub> to flip direction ✓<br>` +
+            `&nbsp;• <b>−Z<sub>c</sub></b>: camera −Z = forward (depth); dividing by −Z<sub>c</sub> gives positive depth for points in front of camera ✓` +
+            `</div>`;
 
         // Projected q
         document.getElementById('formula-proj').innerHTML =
@@ -536,10 +549,11 @@
         const imgH = params.cy * 2;
         const skewSlope = params.skew / Math.max(params.fy, 1);
 
+        // Origin at top-left (OpenCV / Isaac Sim image convention): u→right, v→down
         function rawPoint(uVal, vVal) {
             return {
                 x: uVal + (vVal - params.cy) * skewSlope,
-                y: imgH - vVal,
+                y: vVal,
             };
         }
 
@@ -615,7 +629,7 @@
             drawLine(mapPoint(0, gy), mapPoint(imgW, gy));
         }
 
-        // Tick marks along bottom edge (u axis)
+        // Tick marks along top edge (u axis) — origin at top-left
         ctx2d.fillStyle = 'rgba(148, 163, 192, 0.35)';
         ctx2d.font = '8px "JetBrains Mono", monospace';
         ctx2d.textAlign = 'center';
@@ -625,11 +639,11 @@
             ctx2d.lineWidth = 1;
             ctx2d.beginPath();
             ctx2d.moveTo(tickBase.x, tickBase.y);
-            ctx2d.lineTo(tickBase.x, tickBase.y + 4);
+            ctx2d.lineTo(tickBase.x, tickBase.y - 4);
             ctx2d.stroke();
-            ctx2d.fillText(gx.toString(), tickBase.x, tickBase.y + 14);
+            ctx2d.fillText(gx.toString(), tickBase.x, tickBase.y - 6);
         }
-        // Tick marks along left edge (v axis)
+        // Tick marks along left edge (v axis) — v increases downward
         ctx2d.textAlign = 'right';
         for (let gy = 0; gy <= imgH; gy += 100) {
             const tickBase = mapPoint(0, gy);
@@ -764,22 +778,22 @@
             ctx2d.fillStyle = 'rgba(248, 113, 113, 0.8)';
             ctx2d.font = '14px "Inter", sans-serif';
             ctx2d.textAlign = 'center';
-            ctx2d.fillText('Point is behind the camera (-Zc ≤ 0)', w / 2, h / 2);
+            ctx2d.fillText('Point is behind the camera (−Zc ≤ 0, depth ≤ 0)', w / 2, h / 2);
             ctx2d.font = '11px "Inter", sans-serif';
             ctx2d.fillStyle = 'rgba(248, 113, 113, 0.5)';
             ctx2d.fillText('Move the world point or adjust camera translation', w / 2, h / 2 + 22);
             ctx2d.textAlign = 'start';
         }
 
-        // Axis labels
+        // Axis labels — origin at top-left, u→right, v→down
         ctx2d.fillStyle = 'rgba(148, 163, 192, 0.6)';
         ctx2d.font = '10px "JetBrains Mono", monospace';
         const uLabel = mapPoint(0, 0);
         const vLabel = mapPoint(0, 0);
-        ctx2d.fillText('u →', uLabel.x + 4, uLabel.y + 24);
+        ctx2d.fillText('u →', uLabel.x + 4, uLabel.y - 10);
         ctx2d.save();
-        ctx2d.translate(vLabel.x - 14, vLabel.y - 4);
-        ctx2d.rotate(-Math.PI / 2);
+        ctx2d.translate(vLabel.x - 8, vLabel.y + 4);
+        ctx2d.rotate(Math.PI / 2);   // v increases downward
         ctx2d.fillText('v →', 0, 0);
         ctx2d.restore();
 

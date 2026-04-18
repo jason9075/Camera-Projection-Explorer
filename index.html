@@ -17,7 +17,7 @@
         <div class="header-content">
             <h1>Camera Projection Explorer</h1>
             <p class="subtitle">Geometric Models & Coordinate System Transformations</p>
-            <p class="subtitle">Right-handed world frame, Z-up. Camera axes follow Isaac Sim default: +X right, +Y up, -Z forward.</p>
+            <p class="subtitle">Right-handed world frame, Z-up. Camera axes follow Isaac Sim USD convention: +X right, +Y up, −Z forward. Image: origin top-left, u→right, v→down (OpenCV / Isaac Sim).</p>
             <p class="subtitle">Reference: <a href="https://docs.isaacsim.omniverse.nvidia.com/4.2.0/reference_conventions.html" target="_blank" rel="noopener noreferrer">Isaac Sim Conventions</a></p>
         </div>
         <button id="reset-btn" title="Reset all parameters to defaults">↺ Reset</button>
@@ -31,8 +31,8 @@
                 <h3>🌍 World Point <span class="coord-label">(X<sub>w</sub>, Y<sub>w</sub>, Z<sub>w</sub>)</span></h3>
                 <div class="slider-row">
                     <label for="pw-x">X<sub>w</sub></label>
-                    <input type="range" id="pw-x" min="-5" max="5" step="0.1" value="3.0">
-                    <span class="slider-value" id="pw-x-val">3.0</span>
+                    <input type="range" id="pw-x" min="-5" max="5" step="0.1" value="1.0">
+                    <span class="slider-value" id="pw-x-val">1.0</span>
                 </div>
                 <div class="slider-row">
                     <label for="pw-y">Y<sub>w</sub></label>
@@ -53,7 +53,7 @@
 
             <!-- Extrinsic Controls: Rotation -->
             <div class="control-group" id="extrinsic-controls">
-                <h3>🔄 Extrinsics — Rotation <span class="coord-label">(Euler Angles °)</span></h3>
+                <h3>🔄 Extrinsics — Rotation <span class="coord-label">(Euler Angles °)</span> <span class="convention-tag">World → Camera</span></h3>
                 <div class="slider-row">
                     <label for="rot-x">Roll</label>
                     <input type="range" id="rot-x" min="-180" max="180" step="1" value="0">
@@ -73,11 +73,11 @@
 
             <!-- Extrinsic Controls: Translation -->
             <div class="control-group" id="translation-controls">
-                <h3>➡️ Extrinsics — Translation <span class="coord-label">(t<sub>x</sub>, t<sub>y</sub>, t<sub>z</sub>)</span></h3>
+                <h3>➡️ Extrinsics — Translation <span class="coord-label">(t<sub>x</sub>, t<sub>y</sub>, t<sub>z</sub>)</span> <span class="convention-tag">Camera position in World</span></h3>
                 <div class="slider-row">
                     <label for="tx">t<sub>x</sub></label>
-                    <input type="range" id="tx" min="-5" max="5" step="0.1" value="1.0">
-                    <span class="slider-value" id="tx-val">1.0</span>
+                    <input type="range" id="tx" min="-5" max="5" step="0.1" value="3.0">
+                    <span class="slider-value" id="tx-val">3.0</span>
                 </div>
                 <div class="slider-row">
                     <label for="ty">t<sub>y</sub></label>
@@ -140,11 +140,11 @@
                     <div class="formula" id="formula-pw"></div>
                 </div>
                 <div class="math-block">
-                    <h4>Extrinsic — R (rotation) &amp; t (camera position in world)</h4>
+                    <h4>Extrinsic [R | t] <span class="convention-tag">World → Camera</span></h4>
                     <div class="formula" id="formula-extrinsic"></div>
                 </div>
                 <div class="math-block">
-                    <h4>Camera Point P<sub>c</sub> = R · (P<sub>w</sub> − t)</h4>
+                    <h4>Camera Point P<sub>c</sub> = R · (P<sub>w</sub> − t) &nbsp;<span style="font-weight:normal;color:var(--text-dim)">(t = camera origin in world)</span></h4>
                     <div class="formula" id="formula-pc"></div>
                 </div>
             </div>
@@ -192,8 +192,9 @@
             </div>
             <div class="concept-card">
                 <div class="card-icon">📐</div>
-                <h3>Extrinsic Parameters</h3>
-                <p>The matrix <strong>[R | t]</strong> performs a rigid body transformation. <strong>R</strong> is a 3×3 orthogonal rotation matrix (R<sup>T</sup>R = I, det(R) = 1). <strong>t</strong> is a 3×1 translation vector. Together as a 4×4 matrix, they map world coordinates to camera coordinates.</p>
+                <h3>Extrinsic Parameters <span class="convention-tag">World → Camera</span></h3>
+                <p>The matrix <strong>[R | t]</strong> is a <em>World → Camera</em> transform: P<sub>c</sub> = R · (P<sub>w</sub> − t). <strong>R</strong> is a 3×3 orthogonal rotation matrix. <strong>t</strong> is the camera's origin expressed in the world frame (not a displacement applied to the world point).<br>
+                <em>Note: textbooks sometimes define [R | t] as camera-to-world (where t becomes the world position of the camera origin). This demo uses the <strong>world-to-camera</strong> convention, consistent with OpenCV and Isaac Sim.</em></p>
             </div>
             <div class="concept-card">
                 <div class="card-icon">🔭</div>
@@ -261,12 +262,12 @@
 
 <span class="tok-type">Mat3</span> R_user = <span class="tok-fn">RotationMatrixZYX</span>(params.rotDeg.x, params.rotDeg.y, params.rotDeg.z);
 <span class="tok-type">Mat3</span> R_base = {
-    { <span class="tok-num">0.0</span>, <span class="tok-num">-1.0</span>,  <span class="tok-num">0.0</span> },
-    { <span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span> },
-    { <span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span> }
+    {  <span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span>,  <span class="tok-num">0.0</span> },
+    {  <span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span> },
+    {  <span class="tok-num">1.0</span>,  <span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span> }
 };
 <span class="tok-type">Mat3</span> R = R_user * R_base;
-<span class="tok-type">Vec3</span> Pc = R * (params.Pw - params.t);   <span class="tok-comment">// Isaac Sim camera axes</span>
+<span class="tok-type">Vec3</span> Pc = R * (params.Pw - params.t);   <span class="tok-comment">// USD/Isaac Sim: +X right, +Y up, -Z forward</span>
 
 <span class="tok-type">Mat3</span> K = {
     { params.fx, params.skew, params.cx },
@@ -287,9 +288,9 @@
             <pre class="code-panel" data-code-panel="python"><code><span class="tok-keyword">def</span> <span class="tok-fn">project_point</span>(params):
     R_user = <span class="tok-fn">rotation_matrix_zyx</span>(params[<span class="tok-str">'roll'</span>], params[<span class="tok-str">'pitch'</span>], params[<span class="tok-str">'yaw'</span>])
     R_base = [
-        [<span class="tok-num">0.0</span>, <span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>],
-        [<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>],
-        [<span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>],
+        [<span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span>, <span class="tok-num">0.0</span>],
+        [<span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>],
+        [<span class="tok-num">1.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>],
     ]
     R = <span class="tok-fn">matmul3</span>(R_user, R_base)
     Pc = <span class="tok-fn">matvec3</span>(R, <span class="tok-fn">sub3</span>(params[<span class="tok-str">'Pw'</span>], params[<span class="tok-str">'t'</span>]))
@@ -323,9 +324,9 @@
 <span class="tok-keyword">func</span> <span class="tok-fn">ProjectPoint</span>(p <span class="tok-type">Params</span>) (<span class="tok-type">float64</span>, <span class="tok-type">float64</span>, <span class="tok-type">bool</span>) {
     RUser := <span class="tok-fn">RotationMatrixZYX</span>(p.Rot.X, p.Rot.Y, p.Rot.Z)
     RBase := <span class="tok-type">Mat3</span>{
-        {<span class="tok-num">0.0</span>, <span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>},
-        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
-        {<span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>},
+        {<span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span>, <span class="tok-num">0.0</span>},
+        {<span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
+        {<span class="tok-num">1.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>},
     }
     R := <span class="tok-fn">MatMul3</span>(RUser, RBase)
     Pc := <span class="tok-fn">MatVec3</span>(R, <span class="tok-fn">Sub3</span>(p.Pw, p.T))
@@ -347,9 +348,9 @@
             <pre class="code-panel" data-code-panel="javascript"><code><span class="tok-keyword">function</span> <span class="tok-fn">projectPoint</span>(params) {
     <span class="tok-keyword">const</span> RUser = <span class="tok-fn">rotationMatrixZYX</span>(params.rot[<span class="tok-num">0</span>], params.rot[<span class="tok-num">1</span>], params.rot[<span class="tok-num">2</span>]);
     <span class="tok-keyword">const</span> RBase = [
-        [<span class="tok-num">0</span>, <span class="tok-num">-1</span>, <span class="tok-num">0</span>],
-        [<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">1</span>],
-        [<span class="tok-num">-1</span>, <span class="tok-num">0</span>, <span class="tok-num">0</span>],
+        [<span class="tok-num">0</span>,  <span class="tok-num">1</span>, <span class="tok-num">0</span>],
+        [<span class="tok-num">0</span>,  <span class="tok-num">0</span>, <span class="tok-num">1</span>],
+        [<span class="tok-num">1</span>,  <span class="tok-num">0</span>, <span class="tok-num">0</span>],
     ];
     <span class="tok-keyword">const</span> R = <span class="tok-fn">matMul3</span>(RUser, RBase);
     <span class="tok-keyword">const</span> Pc = <span class="tok-fn">matVec3</span>(R, [
@@ -375,9 +376,9 @@
             <pre class="code-panel" data-code-panel="java"><code><span class="tok-keyword">public</span> <span class="tok-keyword">static</span> <span class="tok-type">ProjectionResult</span> <span class="tok-fn">projectPoint</span>(<span class="tok-type">Params</span> params) {
     <span class="tok-type">Mat3</span> rUser = <span class="tok-fn">rotationMatrixZYX</span>(params.rot.x, params.rot.y, params.rot.z);
     <span class="tok-type">Mat3</span> rBase = <span class="tok-keyword">new</span> <span class="tok-type">Mat3</span>(<span class="tok-keyword">new</span> <span class="tok-type">double</span>[][]{
-        {<span class="tok-num">0.0</span>, <span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>},
-        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
-        {<span class="tok-num">-1.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>}
+        {<span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span>, <span class="tok-num">0.0</span>},
+        {<span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
+        {<span class="tok-num">1.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>}
     });
     <span class="tok-type">Mat3</span> r = <span class="tok-fn">matMul3</span>(rUser, rBase);
     <span class="tok-type">Vec3</span> pc = <span class="tok-fn">matVec3</span>(r, <span class="tok-fn">sub3</span>(params.pw, params.t));
