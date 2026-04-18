@@ -666,7 +666,14 @@
     function updateCameraVisualOrientation(preset) {
         const up = vecNorm(preset.camUp);
         const back = vecNorm([-preset.camForward[0], -preset.camForward[1], -preset.camForward[2]]);
-        const right = vecNorm(vecCross(up, back));
+        // Three.js rotations are right-handed. For left-handed presets, build the visual basis
+        // with the opposite cross-product order so the side screen stays on camera +X instead of
+        // appearing on the mirrored side after the scene-level handedness compensation.
+        const right = vecNorm(
+            preset.handedness === 'left'
+                ? vecCross(back, up)
+                : vecCross(up, back)
+        );
         const basis = new THREE.Matrix4();
         basis.makeBasis(
             new THREE.Vector3(right[0], right[1], right[2]),
@@ -951,11 +958,12 @@
         function rawPoint(uVal, vVal) {
             // For bottom-left origin (V up), flip the canvas y to show (0,0) at bottom.
             const yCanvas = vDown ? vVal : (imgH - vVal);
-            // Draw the skewed image plane by undoing the intrinsic shear:
-            // u = x + skew * ((v - cy) / fy)  =>  x = u - skew * ((v - cy) / fy).
-            // Use canvas-vertical direction so V↓ / V↑ presets tilt opposite ways on screen.
+            // Positive skew follows the positive image-space v axis:
+            // x' = x + skew * ((v - cy) / fy).
+            // So the side with larger positive v tilts right:
+            // V↑ presets tilt the top edge right; V↓ presets tilt the bottom edge right.
             return {
-                x: uVal - (yCanvas - params.cy) * skewSlope,
+                x: uVal + (vVal - params.cy) * skewSlope,
                 y: yCanvas,
             };
         }
