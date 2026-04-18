@@ -868,12 +868,13 @@
         THREE.Object3D.DefaultUp.set(preset.worldUp[0], preset.worldUp[1], preset.worldUp[2]);
         cam3d.up.set(preset.worldUp[0], preset.worldUp[1], preset.worldUp[2]);
 
-        // Three.js is inherently right-handed. For Y-up left-hand systems (Unity, DirectX),
-        // flip scene Z so the chirality appears inverted in the viewer. scene.scale does NOT
-        // affect camera math (lookAt, orbit). Z-up left-hand (Unreal) is NOT flipped because
-        // flipping Y in Z-up orbit causes orbit reversal that cannot be cleanly compensated.
+        // Three.js is inherently right-handed. Mirror one horizontal axis for left-handed presets
+        // so the viewer matches the target system chirality. scene.scale does NOT affect camera math
+        // (lookAt, orbit), only the rendered scene handedness.
         if (preset.handedness === 'left' && preset.worldUp[1] > 0.5) {
             scene.scale.set(1, 1, -1); // Y-up left-hand: flip Z
+        } else if (preset.handedness === 'left' && preset.worldUp[2] > 0.5) {
+            scene.scale.set(1, -1, 1); // Z-up left-hand (Unreal): flip Y
         } else {
             scene.scale.set(1, 1, 1);
         }
