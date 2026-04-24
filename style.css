@@ -886,3 +886,24 @@ input[type="range"]::-moz-range-thumb {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }
 }
+
+/* GitHub Ribbon */
+.github-ribbon {
+    position: absolute;
+    top: 0;
+    left: 0;
+    border: 0;
+    z-index: 1000;
+    pointer-events: auto;
+    transition: transform var(--transition-normal);
+}
+
+.github-ribbon:hover {
+    transform: scale(1.05);
+}
+
+@media (max-width: 600px) {
+    .github-ribbon {
+        display: none;
+    }
+}
