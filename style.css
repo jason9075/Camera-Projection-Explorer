@@ -757,30 +757,42 @@ input[type="range"]::-moz-range-thumb {
     font-size: 0.88rem;
     line-height: 1.7;
     color: var(--text-primary);
+    text-shadow: none;
 }
 
-.tok-keyword {
+#cpp-pseudocode pre[class*="language-"],
+#cpp-pseudocode code[class*="language-"] {
+    background: transparent;
+}
+
+#cpp-pseudocode .token.comment,
+#cpp-pseudocode .token.prolog,
+#cpp-pseudocode .token.doctype,
+#cpp-pseudocode .token.cdata {
+    color: #7d8596;
+}
+
+#cpp-pseudocode .token.keyword,
+#cpp-pseudocode .token.boolean {
     color: #ff7ab6;
 }
 
-.tok-type {
+#cpp-pseudocode .token.class-name,
+#cpp-pseudocode .token.builtin {
     color: #8ad6ff;
 }
 
-.tok-fn {
+#cpp-pseudocode .token.function {
     color: #ffd166;
 }
 
-.tok-num {
+#cpp-pseudocode .token.number {
     color: #b794f4;
 }
 
-.tok-str {
+#cpp-pseudocode .token.string,
+#cpp-pseudocode .token.char {
     color: #7ee787;
-}
-
-.tok-comment {
-    color: #7d8596;
 }
 
 /* ===== Footer ===== */

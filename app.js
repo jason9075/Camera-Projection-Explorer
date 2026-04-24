@@ -597,136 +597,154 @@
         const preset = activePreset();
         const rBaseRows = codeMatrixRows(preset.RBase, '        ');
         const proj = presetProjectionExpr(preset, 'pc');
-        const projJS = `[${proj.join(', ')}]`;
-        const behindExpr = 'pProj[2] <= 0';
         const projComment = `${preset.label}: ${preset.camConvention}`;
+        const projCpp = proj.map(v => v.replace(/\bpc\.x\b/g, 'Pc.x').replace(/\bpc\.y\b/g, 'Pc.y').replace(/\bpc\.z\b/g, 'Pc.z'));
+        const projPython = proj.map(v => v.replace(/\bpc\.x\b/g, 'Pc[0]').replace(/\bpc\.y\b/g, 'Pc[1]').replace(/\bpc\.z\b/g, 'Pc[2]'));
+        const projGo = proj.map(v => v.replace(/\bpc\.x\b/g, 'Pc.X').replace(/\bpc\.y\b/g, 'Pc.Y').replace(/\bpc\.z\b/g, 'Pc.Z'));
+        const projJSArray = proj.map(v => v.replace(/\bpc\.x\b/g, 'Pc[0]').replace(/\bpc\.y\b/g, 'Pc[1]').replace(/\bpc\.z\b/g, 'Pc[2]'));
+        const projJava = proj.map(v => v.replace(/\bpc\b/g, 'pc'));
+        const languageMap = {
+            cpp: 'cpp',
+            python: 'python',
+            golang: 'go',
+            javascript: 'javascript',
+            java: 'java',
+        };
 
         const panels = {
-            cpp: `<span class="tok-keyword">struct</span> <span class="tok-type">Params</span> {
-    <span class="tok-type">Vec3</span> Pw;          <span class="tok-comment">// world point</span>
-    <span class="tok-type">Vec3</span> rotDeg;      <span class="tok-comment">// roll, pitch, yaw</span>
-    <span class="tok-type">Vec3</span> t;           <span class="tok-comment">// camera position in world frame</span>
-    <span class="tok-type">double</span> fx, fy;
-    <span class="tok-type">double</span> cx, cy;
-    <span class="tok-type">double</span> skew;
+            cpp: `struct Params {
+    Vec3 Pw;          // world point
+    Vec3 rotDeg;      // roll, pitch, yaw
+    Vec3 t;           // camera position in world frame
+    double fx, fy;
+    double cx, cy;
+    double skew;
 };
 
-<span class="tok-type">Mat3</span> R_user = <span class="tok-fn">RotationMatrixRPY</span>(preset, params.rotDeg.x, params.rotDeg.y, params.rotDeg.z);
-<span class="tok-type">Mat3</span> R_base = {
+Mat3 R_user = RotationMatrixRPY(preset, params.rotDeg.x, params.rotDeg.y, params.rotDeg.z);
+Mat3 R_base = {
 ${rBaseRows.replace(/\[/g, '{ ').replace(/\]/g, ' }')}
 };
-<span class="tok-type">Mat3</span> R = R_user * R_base;
-<span class="tok-type">Vec3</span> Pc = R * (params.Pw - params.t);   <span class="tok-comment">// ${projComment}</span>
+Mat3 R = R_user * R_base;
+Vec3 Pc = R * (params.Pw - params.t);   // ${projComment}
 
-<span class="tok-type">Mat3</span> K = {
+Mat3 K = {
     { params.fx, params.skew, params.cx },
-    { <span class="tok-num">0.0</span>,       params.fy,   params.cy },
-    { <span class="tok-num">0.0</span>,       <span class="tok-num">0.0</span>,         <span class="tok-num">1.0</span>       }
+    { 0.0,       params.fy,   params.cy },
+    { 0.0,       0.0,         1.0       }
 };
 
-<span class="tok-type">Vec3</span> Pproj = { ${proj.join(', ')} };
-<span class="tok-type">Vec3</span> q = K * Pproj;
+Vec3 Pproj = { ${projCpp.join(', ')} };
+Vec3 q = K * Pproj;
 
-<span class="tok-keyword">if</span> (Pproj.z &lt;= <span class="tok-num">0.0</span>) {
-    <span class="tok-comment">// point is behind the camera</span>
-} <span class="tok-keyword">else</span> {
-    <span class="tok-type">double</span> u = q.x / q.z;
-    <span class="tok-type">double</span> v = q.y / q.z;
+if (Pproj.z <= 0.0) {
+    // point is behind the camera
+} else {
+    double u = q.x / q.z;
+    double v = q.y / q.z;
 }`,
-            python: `<span class="tok-keyword">def</span> <span class="tok-fn">project_point</span>(params, preset):
-    R_user = <span class="tok-fn">rotation_matrix_rpy</span>(preset, params[<span class="tok-str">'roll'</span>], params[<span class="tok-str">'pitch'</span>], params[<span class="tok-str">'yaw'</span>])
+            python: `def project_point(params, preset):
+    R_user = rotation_matrix_rpy(preset, params['roll'], params['pitch'], params['yaw'])
     R_base = [
 ${rBaseRows}
     ]
-    R = <span class="tok-fn">matmul3</span>(R_user, R_base)
-    Pc = <span class="tok-fn">matvec3</span>(R, <span class="tok-fn">sub3</span>(params[<span class="tok-str">'Pw'</span>], params[<span class="tok-str">'t'</span>]))  <span class="tok-comment"># ${projComment}</span>
+    R = matmul3(R_user, R_base)
+    Pc = matvec3(R, sub3(params['Pw'], params['t']))  # ${projComment}
 
-    Pproj = [${proj.map(v => v.replace(/\bpc\b/g, 'Pc')).join(', ')}]
+    Pproj = [${projPython.join(', ')}]
     K = [
-        [params[<span class="tok-str">'fx'</span>], params[<span class="tok-str">'skew'</span>], params[<span class="tok-str">'cx'</span>]],
-        [<span class="tok-num">0.0</span>, params[<span class="tok-str">'fy'</span>], params[<span class="tok-str">'cy'</span>]],
-        [<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>],
+        [params['fx'], params['skew'], params['cx']],
+        [0.0, params['fy'], params['cy']],
+        [0.0, 0.0, 1.0],
     ]
-    q = <span class="tok-fn">matvec3</span>(K, Pproj)
+    q = matvec3(K, Pproj)
 
-    <span class="tok-keyword">if</span> Pproj[<span class="tok-num">2</span>] &lt;= <span class="tok-num">0.0</span>:
-        <span class="tok-keyword">return</span> <span class="tok-keyword">None</span>
+    if Pproj[2] <= 0.0:
+        return None
 
-    u = q[<span class="tok-num">0</span>] / q[<span class="tok-num">2</span>]
-    v = q[<span class="tok-num">1</span>] / q[<span class="tok-num">2</span>]
-    <span class="tok-keyword">return</span> u, v`,
-            golang: `<span class="tok-keyword">func</span> <span class="tok-fn">ProjectPoint</span>(p <span class="tok-type">Params</span>, preset <span class="tok-type">Preset</span>) (<span class="tok-type">float64</span>, <span class="tok-type">float64</span>, <span class="tok-type">bool</span>) {
-    RUser := <span class="tok-fn">RotationMatrixRPY</span>(preset, p.Rot.X, p.Rot.Y, p.Rot.Z)
-    RBase := <span class="tok-type">Mat3</span>{
+    u = q[0] / q[2]
+    v = q[1] / q[2]
+    return u, v`,
+            golang: `func ProjectPoint(p Params, preset Preset) (float64, float64, bool) {
+    RUser := RotationMatrixRPY(preset, p.Rot.X, p.Rot.Y, p.Rot.Z)
+    RBase := Mat3{
 ${rBaseRows.replace(/\[/g, '{').replace(/\]/g, '}')}
     }
-    R := <span class="tok-fn">MatMul3</span>(RUser, RBase)
-    Pc := <span class="tok-fn">MatVec3</span>(R, <span class="tok-fn">Sub3</span>(p.Pw, p.T)) <span class="tok-comment">// ${projComment}</span>
-    Pproj := <span class="tok-type">Vec3</span>{${proj.map(v => v.replace(/\bpc\b/g, 'Pc')).join(', ')}}
+    R := MatMul3(RUser, RBase)
+    Pc := MatVec3(R, Sub3(p.Pw, p.T)) // ${projComment}
+    Pproj := Vec3{${projGo.join(', ')}}
 
-    K := <span class="tok-type">Mat3</span>{
+    K := Mat3{
         {p.Fx, p.Skew, p.Cx},
-        {<span class="tok-num">0.0</span>, p.Fy, p.Cy},
-        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
+        {0.0, p.Fy, p.Cy},
+        {0.0, 0.0, 1.0},
     }
-    q := <span class="tok-fn">MatVec3</span>(K, Pproj)
+    q := MatVec3(K, Pproj)
 
-    <span class="tok-keyword">if</span> Pproj.Z &lt;= <span class="tok-num">0.0</span> {
-        <span class="tok-keyword">return</span> <span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-keyword">false</span>
+    if Pproj.Z <= 0.0 {
+        return 0, 0, false
     }
-    <span class="tok-keyword">return</span> q.X / q.Z, q.Y / q.Z, <span class="tok-keyword">true</span>
+    return q.X / q.Z, q.Y / q.Z, true
 }`,
-            javascript: `<span class="tok-keyword">function</span> <span class="tok-fn">projectPoint</span>(params, preset) {
-    <span class="tok-keyword">const</span> RUser = <span class="tok-fn">rotationMatrixRPY</span>(preset, params.rot[<span class="tok-num">0</span>], params.rot[<span class="tok-num">1</span>], params.rot[<span class="tok-num">2</span>]);
-    <span class="tok-keyword">const</span> RBase = [
+            javascript: `function projectPoint(params, preset) {
+    const RUser = rotationMatrixRPY(preset, params.rot[0], params.rot[1], params.rot[2]);
+    const RBase = [
 ${rBaseRows}
     ];
-    <span class="tok-keyword">const</span> R = <span class="tok-fn">matMul3</span>(RUser, RBase);
-    <span class="tok-keyword">const</span> Pc = <span class="tok-fn">matVec3</span>(R, [
-        params.pw[<span class="tok-num">0</span>] - params.t[<span class="tok-num">0</span>],
-        params.pw[<span class="tok-num">1</span>] - params.t[<span class="tok-num">1</span>],
-        params.pw[<span class="tok-num">2</span>] - params.t[<span class="tok-num">2</span>],
-    ]); <span class="tok-comment">// ${projComment}</span>
+    const R = matMul3(RUser, RBase);
+    const Pc = matVec3(R, [
+        params.pw[0] - params.t[0],
+        params.pw[1] - params.t[1],
+        params.pw[2] - params.t[2],
+    ]); // ${projComment}
 
-    <span class="tok-keyword">const</span> Pproj = ${projJS};
-    <span class="tok-keyword">const</span> K = [
+    const Pproj = [${projJSArray.join(', ')}];
+    const K = [
         [params.fx, params.skew, params.cx],
-        [<span class="tok-num">0</span>, params.fy, params.cy],
-        [<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">1</span>],
+        [0, params.fy, params.cy],
+        [0, 0, 1],
     ];
-    <span class="tok-keyword">const</span> q = <span class="tok-fn">matVec3</span>(K, Pproj);
+    const q = matVec3(K, Pproj);
 
-    <span class="tok-keyword">if</span> (Pproj[<span class="tok-num">2</span>] &lt;= <span class="tok-num">0</span>) {
-        <span class="tok-keyword">return</span> <span class="tok-keyword">null</span>;
+    if (Pproj[2] <= 0) {
+        return null;
     }
-    <span class="tok-keyword">return</span> { u: q[<span class="tok-num">0</span>] / q[<span class="tok-num">2</span>], v: q[<span class="tok-num">1</span>] / q[<span class="tok-num">2</span>] };
+    return { u: q[0] / q[2], v: q[1] / q[2] };
 }`,
-            java: `<span class="tok-keyword">public</span> <span class="tok-keyword">static</span> <span class="tok-type">ProjectionResult</span> <span class="tok-fn">projectPoint</span>(<span class="tok-type">Params</span> params, <span class="tok-type">Preset</span> preset) {
-    <span class="tok-type">Mat3</span> rUser = <span class="tok-fn">rotationMatrixRPY</span>(preset, params.rot.x, params.rot.y, params.rot.z);
-    <span class="tok-type">Mat3</span> rBase = <span class="tok-keyword">new</span> <span class="tok-type">Mat3</span>(<span class="tok-keyword">new</span> <span class="tok-type">double</span>[][]{
+            java: `public static ProjectionResult projectPoint(Params params, Preset preset) {
+    Mat3 rUser = rotationMatrixRPY(preset, params.rot.x, params.rot.y, params.rot.z);
+    Mat3 rBase = new Mat3(new double[][]{
 ${rBaseRows.replace(/\[/g, '{').replace(/\]/g, '}')}
     });
-    <span class="tok-type">Mat3</span> r = <span class="tok-fn">matMul3</span>(rUser, rBase);
-    <span class="tok-type">Vec3</span> pc = <span class="tok-fn">matVec3</span>(r, <span class="tok-fn">sub3</span>(params.pw, params.t)); <span class="tok-comment">// ${projComment}</span>
+    Mat3 r = matMul3(rUser, rBase);
+    Vec3 pc = matVec3(r, sub3(params.pw, params.t)); // ${projComment}
 
-    <span class="tok-type">Vec3</span> pProj = <span class="tok-keyword">new</span> <span class="tok-type">Vec3</span>(${proj.join(', ')});
-    <span class="tok-type">Mat3</span> k = <span class="tok-keyword">new</span> <span class="tok-type">Mat3</span>(<span class="tok-keyword">new</span> <span class="tok-type">double</span>[][]{
+    Vec3 pProj = new Vec3(${projJava.join(', ')});
+    Mat3 k = new Mat3(new double[][]{
         {params.fx, params.skew, params.cx},
-        {<span class="tok-num">0.0</span>, params.fy, params.cy},
-        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>}
+        {0.0, params.fy, params.cy},
+        {0.0, 0.0, 1.0}
     });
-    <span class="tok-type">Vec3</span> q = <span class="tok-fn">matVec3</span>(k, pProj);
+    Vec3 q = matVec3(k, pProj);
 
-    <span class="tok-keyword">if</span> (pProj.z &lt;= <span class="tok-num">0.0</span>) {
-        <span class="tok-keyword">return</span> <span class="tok-keyword">null</span>;
+    if (pProj.z <= 0.0) {
+        return null;
     }
-    <span class="tok-keyword">return</span> <span class="tok-keyword">new</span> <span class="tok-type">ProjectionResult</span>(q.x / q.z, q.y / q.z);
+    return new ProjectionResult(q.x / q.z, q.y / q.z);
 }`,
         };
 
-        Object.entries(panels).forEach(([name, html]) => {
+        Object.entries(panels).forEach(([name, code]) => {
             const panel = document.querySelector(`[data-code-panel="${name}"] code`);
-            if (panel) panel.innerHTML = html;
+            const pre = document.querySelector(`[data-code-panel="${name}"]`);
+            const language = languageMap[name];
+            if (!panel || !pre || !language) return;
+            pre.className = `code-panel${pre.classList.contains('is-active') ? ' is-active' : ''} language-${language}`;
+            panel.className = `language-${language}`;
+            panel.textContent = code;
+            if (window.Prism && typeof window.Prism.highlightElement === 'function') {
+                window.Prism.highlightElement(panel);
+            }
         });
     }
 

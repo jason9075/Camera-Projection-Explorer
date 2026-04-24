@@ -55,6 +55,7 @@ Both commands also accept a custom port, for example `just serve 8081` or `just 
 
 - **HTML/CSS/JS** — Pure static site, no build step required
 - **Three.js** (r128) — 3D visualization via CDN
+- **Prism.js** (v1.29.0) — Syntax highlighting for the Reference Code block
 - **Nix Flakes** — Reproducible dev environment
 - **entr** — File watcher for live reload
 

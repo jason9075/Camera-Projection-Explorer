@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -279,151 +280,11 @@
         </div>
 
         <div class="code-panels">
-            <pre class="code-panel is-active" data-code-panel="cpp"><code><span class="tok-keyword">struct</span> <span class="tok-type">Params</span> {
-    <span class="tok-type">Vec3</span> Pw;          <span class="tok-comment">// world point</span>
-    <span class="tok-type">Vec3</span> rotDeg;      <span class="tok-comment">// roll, pitch, yaw</span>
-    <span class="tok-type">Vec3</span> t;           <span class="tok-comment">// camera position in world frame</span>
-    <span class="tok-type">double</span> fx, fy;
-    <span class="tok-type">double</span> cx, cy;
-    <span class="tok-type">double</span> skew;
-};
-
-<span class="tok-type">Mat3</span> R_user = <span class="tok-fn">RotationMatrixZYX</span>(params.rotDeg.x, params.rotDeg.y, params.rotDeg.z);
-<span class="tok-type">Mat3</span> R_base = {
-    {  <span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span>,  <span class="tok-num">0.0</span> },
-    {  <span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span> },
-    {  <span class="tok-num">1.0</span>,  <span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span> }
-};
-<span class="tok-type">Mat3</span> R = R_user * R_base;
-<span class="tok-type">Vec3</span> Pc = R * (params.Pw - params.t);   <span class="tok-comment">// USD/Isaac Sim: +X right, +Y up, -Z forward</span>
-
-<span class="tok-type">Mat3</span> K = {
-    { params.fx, params.skew, params.cx },
-    { <span class="tok-num">0.0</span>,       params.fy,   params.cy },
-    { <span class="tok-num">0.0</span>,       <span class="tok-num">0.0</span>,         <span class="tok-num">1.0</span>       }
-};
-
-<span class="tok-type">Vec3</span> Pproj = { Pc.x, -Pc.y, -Pc.z };    <span class="tok-comment">// image-facing coordinates</span>
-<span class="tok-type">Vec3</span> q = K * Pproj;
-
-<span class="tok-keyword">if</span> (-Pc.z &lt;= <span class="tok-num">0.0</span>) {
-    <span class="tok-comment">// point is behind the camera</span>
-} <span class="tok-keyword">else</span> {
-    <span class="tok-type">double</span> u = q.x / q.z;
-    <span class="tok-type">double</span> v = q.y / q.z;
-}</code></pre>
-
-            <pre class="code-panel" data-code-panel="python"><code><span class="tok-keyword">def</span> <span class="tok-fn">project_point</span>(params):
-    R_user = <span class="tok-fn">rotation_matrix_zyx</span>(params[<span class="tok-str">'roll'</span>], params[<span class="tok-str">'pitch'</span>], params[<span class="tok-str">'yaw'</span>])
-    R_base = [
-        [<span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span>, <span class="tok-num">0.0</span>],
-        [<span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>],
-        [<span class="tok-num">1.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>],
-    ]
-    R = <span class="tok-fn">matmul3</span>(R_user, R_base)
-    Pc = <span class="tok-fn">matvec3</span>(R, <span class="tok-fn">sub3</span>(params[<span class="tok-str">'Pw'</span>], params[<span class="tok-str">'t'</span>]))
-
-    Pproj = [Pc[<span class="tok-num">0</span>], -Pc[<span class="tok-num">1</span>], -Pc[<span class="tok-num">2</span>]]
-    K = [
-        [params[<span class="tok-str">'fx'</span>], params[<span class="tok-str">'skew'</span>], params[<span class="tok-str">'cx'</span>]],
-        [<span class="tok-num">0.0</span>, params[<span class="tok-str">'fy'</span>], params[<span class="tok-str">'cy'</span>]],
-        [<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>],
-    ]
-    q = <span class="tok-fn">matvec3</span>(K, Pproj)
-
-    <span class="tok-keyword">if</span> -Pc[<span class="tok-num">2</span>] &lt;= <span class="tok-num">0.0</span>:
-        <span class="tok-keyword">return</span> <span class="tok-keyword">None</span>
-
-    u = q[<span class="tok-num">0</span>] / q[<span class="tok-num">2</span>]
-    v = q[<span class="tok-num">1</span>] / q[<span class="tok-num">2</span>]
-    <span class="tok-keyword">return</span> u, v</code></pre>
-
-            <pre class="code-panel" data-code-panel="golang"><code><span class="tok-keyword">type</span> <span class="tok-type">Params</span> <span class="tok-keyword">struct</span> {
-    Pw    <span class="tok-type">Vec3</span>
-    Rot   <span class="tok-type">Vec3</span>
-    T     <span class="tok-type">Vec3</span>
-    Fx    <span class="tok-type">float64</span>
-    Fy    <span class="tok-type">float64</span>
-    Cx    <span class="tok-type">float64</span>
-    Cy    <span class="tok-type">float64</span>
-    Skew  <span class="tok-type">float64</span>
-}
-
-<span class="tok-keyword">func</span> <span class="tok-fn">ProjectPoint</span>(p <span class="tok-type">Params</span>) (<span class="tok-type">float64</span>, <span class="tok-type">float64</span>, <span class="tok-type">bool</span>) {
-    RUser := <span class="tok-fn">RotationMatrixZYX</span>(p.Rot.X, p.Rot.Y, p.Rot.Z)
-    RBase := <span class="tok-type">Mat3</span>{
-        {<span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span>, <span class="tok-num">0.0</span>},
-        {<span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
-        {<span class="tok-num">1.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>},
-    }
-    R := <span class="tok-fn">MatMul3</span>(RUser, RBase)
-    Pc := <span class="tok-fn">MatVec3</span>(R, <span class="tok-fn">Sub3</span>(p.Pw, p.T))
-    Pproj := <span class="tok-type">Vec3</span>{Pc.X, -Pc.Y, -Pc.Z}
-
-    K := <span class="tok-type">Mat3</span>{
-        {p.Fx, p.Skew, p.Cx},
-        {<span class="tok-num">0.0</span>, p.Fy, p.Cy},
-        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
-    }
-    q := <span class="tok-fn">MatVec3</span>(K, Pproj)
-
-    <span class="tok-keyword">if</span> -Pc.Z &lt;= <span class="tok-num">0.0</span> {
-        <span class="tok-keyword">return</span> <span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-keyword">false</span>
-    }
-    <span class="tok-keyword">return</span> q.X / q.Z, q.Y / q.Z, <span class="tok-keyword">true</span>
-}</code></pre>
-
-            <pre class="code-panel" data-code-panel="javascript"><code><span class="tok-keyword">function</span> <span class="tok-fn">projectPoint</span>(params) {
-    <span class="tok-keyword">const</span> RUser = <span class="tok-fn">rotationMatrixZYX</span>(params.rot[<span class="tok-num">0</span>], params.rot[<span class="tok-num">1</span>], params.rot[<span class="tok-num">2</span>]);
-    <span class="tok-keyword">const</span> RBase = [
-        [<span class="tok-num">0</span>,  <span class="tok-num">1</span>, <span class="tok-num">0</span>],
-        [<span class="tok-num">0</span>,  <span class="tok-num">0</span>, <span class="tok-num">1</span>],
-        [<span class="tok-num">1</span>,  <span class="tok-num">0</span>, <span class="tok-num">0</span>],
-    ];
-    <span class="tok-keyword">const</span> R = <span class="tok-fn">matMul3</span>(RUser, RBase);
-    <span class="tok-keyword">const</span> Pc = <span class="tok-fn">matVec3</span>(R, [
-        params.pw[<span class="tok-num">0</span>] - params.t[<span class="tok-num">0</span>],
-        params.pw[<span class="tok-num">1</span>] - params.t[<span class="tok-num">1</span>],
-        params.pw[<span class="tok-num">2</span>] - params.t[<span class="tok-num">2</span>],
-    ]);
-
-    <span class="tok-keyword">const</span> Pproj = [Pc[<span class="tok-num">0</span>], -Pc[<span class="tok-num">1</span>], -Pc[<span class="tok-num">2</span>]];
-    <span class="tok-keyword">const</span> K = [
-        [params.fx, params.skew, params.cx],
-        [<span class="tok-num">0</span>, params.fy, params.cy],
-        [<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">1</span>],
-    ];
-    <span class="tok-keyword">const</span> q = <span class="tok-fn">matVec3</span>(K, Pproj);
-
-    <span class="tok-keyword">if</span> (-Pc[<span class="tok-num">2</span>] &lt;= <span class="tok-num">0</span>) {
-        <span class="tok-keyword">return</span> <span class="tok-keyword">null</span>;
-    }
-    <span class="tok-keyword">return</span> { u: q[<span class="tok-num">0</span>] / q[<span class="tok-num">2</span>], v: q[<span class="tok-num">1</span>] / q[<span class="tok-num">2</span>] };
-}</code></pre>
-
-            <pre class="code-panel" data-code-panel="java"><code><span class="tok-keyword">public</span> <span class="tok-keyword">static</span> <span class="tok-type">ProjectionResult</span> <span class="tok-fn">projectPoint</span>(<span class="tok-type">Params</span> params) {
-    <span class="tok-type">Mat3</span> rUser = <span class="tok-fn">rotationMatrixZYX</span>(params.rot.x, params.rot.y, params.rot.z);
-    <span class="tok-type">Mat3</span> rBase = <span class="tok-keyword">new</span> <span class="tok-type">Mat3</span>(<span class="tok-keyword">new</span> <span class="tok-type">double</span>[][]{
-        {<span class="tok-num">0.0</span>,  <span class="tok-num">1.0</span>, <span class="tok-num">0.0</span>},
-        {<span class="tok-num">0.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>},
-        {<span class="tok-num">1.0</span>,  <span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>}
-    });
-    <span class="tok-type">Mat3</span> r = <span class="tok-fn">matMul3</span>(rUser, rBase);
-    <span class="tok-type">Vec3</span> pc = <span class="tok-fn">matVec3</span>(r, <span class="tok-fn">sub3</span>(params.pw, params.t));
-
-    <span class="tok-type">Vec3</span> pProj = <span class="tok-keyword">new</span> <span class="tok-type">Vec3</span>(pc.x, -pc.y, -pc.z);
-    <span class="tok-type">Mat3</span> k = <span class="tok-keyword">new</span> <span class="tok-type">Mat3</span>(<span class="tok-keyword">new</span> <span class="tok-type">double</span>[][]{
-        {params.fx, params.skew, params.cx},
-        {<span class="tok-num">0.0</span>, params.fy, params.cy},
-        {<span class="tok-num">0.0</span>, <span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>}
-    });
-    <span class="tok-type">Vec3</span> q = <span class="tok-fn">matVec3</span>(k, pProj);
-
-    <span class="tok-keyword">if</span> (-pc.z &lt;= <span class="tok-num">0.0</span>) {
-        <span class="tok-keyword">return</span> <span class="tok-keyword">null</span>;
-    }
-    <span class="tok-keyword">return</span> <span class="tok-keyword">new</span> <span class="tok-type">ProjectionResult</span>(q.x / q.z, q.y / q.z);
-}</code></pre>
+            <pre class="code-panel is-active" data-code-panel="cpp"><code></code></pre>
+            <pre class="code-panel" data-code-panel="python"><code></code></pre>
+            <pre class="code-panel" data-code-panel="golang"><code></code></pre>
+            <pre class="code-panel" data-code-panel="javascript"><code></code></pre>
+            <pre class="code-panel" data-code-panel="java"><code></code></pre>
         </div>
     </section>
 
@@ -433,6 +294,18 @@
     </footer>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        window.Prism = window.Prism || {};
+        window.Prism.manual = true;
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
